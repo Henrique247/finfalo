@@ -1,20 +1,51 @@
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
+  <img width="200" src="https://replicate.delivery/xpbkg/vO35f3079wW1I5V0N987U7b8b6e6f5e4e3e2e1e0e9e8q9gA/output.png" alt="Logo FinFalo" />
+  
+  # FinFalo
+  
+  <p><em>Plataforma inteligente de gestão e análise financeira.</em></p>
+
+  <p>
+    <img src="https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
+    <img src="https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white" alt="Vite" />
+    <img src="https://img.shields.io/badge/Node.js-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js" />
+    <img src="https://img.shields.io/badge/Status-Em_Desenvolvimento-orange?style=flat-square" alt="Status" />
+  </p>
 </div>
 
-# Run and deploy your AI Studio app
+---
 
-This contains everything you need to run your app locally.
+## Sobre o Projeto
 
-View your app in AI Studio: https://ai.studio/apps/deb66e8c-aa35-40ce-b66e-a0630afa2e7c
+O **FinFalo** é uma solução tecnológica estruturada para otimizar o controlo e a gestão financeira, combinando eficiência de código e uma interface intuitiva. Desenvolvido com foco na robustez e escalabilidade.
 
-## Run Locally
+## Tecnologias Utilizadas
 
-**Prerequisites:**  Node.js
+* **Linguagem:** TypeScript
+* **Ambiente:** Node.js
+* **Empacotador:** Vite
 
+---
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Como Executar o Projeto Localmente
+
+Certifica-te de que tens o **Node.js** instalado na tua máquina.
+
+1. **Clona o repositório:**
+
+   git clone
+
+[https://github.com/Henrique247/finfalo.git](https://github.com/Henrique247/finfalo.git)
+
+2. **Acede à pasta do projeto:**
+cd finfalo
+
+3. Instala as dependências:
+
+npm install
+
+4. Configura o ambiente:
+ Cria um ficheiro ⁠.env⁠ na raiz com base no ⁠.env.example⁠ e adiciona as tuas chaves de configuração.
+
+npm run dev
+
