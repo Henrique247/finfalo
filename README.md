@@ -1,5 +1,7 @@
 <div align="center">
-  <img width="200" src="https://replicate.delivery/xpbkg/vO35f3079wW1I5V0N987U7b8b6e6f5e4e3e2e1e0e9e8q9gA/output.png" alt="Logo FinFalo" />
+  <img width="200" src="https://i.postimg.cc/C1Jh3TGf/IMG-6494.jpg" alt="Logo FinFalo" />
+</div>
+
   
   # FinFalo
   
