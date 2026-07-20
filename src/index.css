@@ -1,0 +1,237 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  
+  --color-brand-deep: #053259;
+  --color-brand-primary: #0869A6;
+  --color-brand-green: #278c36;
+  --color-brand-green-light: #51a629;
+}
+
+@layer base {
+  body {
+    background-color: #031c33; /* Deep dark blue background base */
+    background-image: radial-gradient(circle at top right, #053259 0%, #021221 100%);
+    color: #f3f4f6;
+    font-family: var(--font-sans);
+    overflow-x: hidden;
+  }
+}
+
+/* Beautiful custom glassy card style with a deep brand-blue/indigo gradient */
+.fintech-card {
+  background: linear-gradient(135deg, rgba(5, 50, 89, 0.4) 0%, rgba(3, 28, 51, 0.8) 100%);
+  border: 1px solid rgba(8, 105, 166, 0.3);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(12px);
+}
+
+.fintech-card-glow {
+  position: relative;
+}
+
+.fintech-card-glow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(to bottom right, rgba(81, 166, 41, 0.4), rgba(8, 105, 166, 0.2));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Glowing text effects */
+.text-glow-green {
+  text-shadow: 0 0 10px rgba(81, 166, 41, 0.5);
+}
+
+.text-glow-blue {
+  text-shadow: 0 0 10px rgba(8, 105, 166, 0.5);
+}
+
+/* Custom Scrollbar for sidebars and assistants */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(3, 28, 51, 0.8);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(81, 166, 41, 0.3);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(81, 166, 41, 0.6);
+}
+
+/* ========================================================== */
+/* LIGHT THEME STYLING OVERRIDES                              */
+/* ========================================================== */
+.light-mode {
+  background-color: #f4f6f9 !important;
+  background-image: radial-gradient(circle at top right, #eef2f6 0%, #dbe1e8 100%) !important;
+  color: #1e293b !important;
+}
+
+.light-mode .text-slate-100,
+.light-mode .text-slate-200 {
+  color: #1e293b !important;
+}
+
+.light-mode .text-white {
+  color: #0f172a !important;
+}
+
+.light-mode .text-slate-300 {
+  color: #334155 !important;
+}
+
+.light-mode .text-slate-400 {
+  color: #64748b !important;
+}
+
+.light-mode .fintech-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.98) 100%) !important;
+  border: 1px solid rgba(8, 105, 166, 0.2) !important;
+  box-shadow: 0 10px 30px -5px rgba(148, 163, 184, 0.25) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+.light-mode aside, 
+.light-mode header,
+.light-mode .bg-slate-950,
+.light-mode .bg-slate-900,
+.light-mode .bg-slate-950\/40,
+.light-mode .bg-slate-900\/10 {
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+.light-mode input,
+.light-mode select,
+.light-mode textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.light-mode input:focus,
+.light-mode select:focus {
+  border-color: #51a629 !important;
+  box-shadow: 0 0 0 2px rgba(81, 166, 41, 0.15) !important;
+}
+
+.light-mode input::placeholder {
+  color: #94a3b8 !important;
+}
+
+.light-mode .text-glow-green {
+  text-shadow: 0 0 8px rgba(81, 166, 41, 0.25) !important;
+}
+
+.light-mode .border-slate-800,
+.light-mode .border-slate-800\/60,
+.light-mode .border-slate-900\/60,
+.light-mode .border-slate-800\/80 {
+  border-color: #e2e8f0 !important;
+}
+
+.light-mode .divide-slate-800\/60 > * {
+  border-color: #e2e8f0 !important;
+}
+
+.light-mode .bg-slate-950\/60 {
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+}
+
+.light-mode .text-slate-500 {
+  color: #64748b !important;
+}
+
+.light-mode .bg-gradient-to-br.from-indigo-950\/40.to-slate-900\/60 {
+  background: linear-gradient(to bottom right, #f8fafc, #f1f5f9) !important;
+  border-color: #e2e8f0 !important;
+}
+
+.light-mode .text-indigo-300 {
+  color: #0869A6 !important;
+}
+
+.light-mode .fixed.inset-0.z-50.flex.items-center.justify-center.p-4.bg-slate-950\/80 {
+  background-color: rgba(15, 23, 42, 0.6) !important;
+}
+
+.light-mode .fixed.bottom-0.inset-x-0 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* ========================================================== */
+/* FOCUS MODE OVERRIDES FOR HEADER, MAIN, AND FOOTER          */
+/* ========================================================== */
+
+/* Header Override */
+div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > header:nth-of-type(1) {
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
+}
+
+@media (min-width: 640px) {
+  div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > header:nth-of-type(1) {
+    padding-left: 1.5rem !important;
+    padding-right: 1.5rem !important;
+    padding-top: 1rem !important;
+    padding-bottom: 1rem !important;
+  }
+}
+
+/* Main Content Container Override */
+div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) {
+  padding-left: 0.75rem !important;
+  padding-right: 0.75rem !important;
+  padding-top: 1rem !important;
+  padding-bottom: 5.5rem !important; /* Provide clearance for bottom navigation tab bar */
+}
+
+@media (min-width: 640px) {
+  div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) {
+    padding-left: 1.5rem !important;
+    padding-right: 1.5rem !important;
+    padding-top: 1.5rem !important;
+    padding-bottom: 1.5rem !important;
+  }
+}
+
+@media (min-width: 768px) {
+  div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > main:nth-of-type(1) {
+    padding-bottom: 1.5rem !important;
+  }
+}
+
+/* Footer Container Override */
+div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > footer:nth-of-type(1) {
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
+  padding-top: 1.25rem !important;
+  padding-bottom: 5.5rem !important; /* Ensure footer text is not blocked by bottom navigation bar */
+}
+
+@media (min-width: 1024px) {
+  div#root:nth-of-type(1) > div:nth-of-type(1) > div:nth-of-type(1) > footer:nth-of-type(1) {
+    padding-bottom: 1.5rem !important;
+  }
+}
+
+
+
