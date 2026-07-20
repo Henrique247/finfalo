@@ -41,15 +41,27 @@ async function startServer() {
         return res.status(400).json({ error: "O campo 'message' é obrigatório." });
       }
 
-      const client = getGeminiClient();
-      if (!process.env.GEMINI_API_KEY) {
+      // Get the appropriate client: custom user API key or system environment variable
+      const userApiKey = financialData.customApiKey || process.env.GEMINI_API_KEY;
+      
+      if (!userApiKey) {
         // Fallback for missing key, so the app doesn't crash on preview
+        const accountType = financialData.accountType || "personal";
+        const typeLabel = accountType === "company" ? "empresa" : accountType === "family" ? "família" : "pessoal singular";
         return res.json({
-          text: "Olá! Sou o FinBot 🤖. Notei que a chave da API do Gemini (GEMINI_API_KEY) não está configurada nos segredos. Mas posso simular uma resposta com base nos seus dados: com base nas suas transações de " + 
-            (financialData.userName || "Henrique") + ", o seu saldo é saudável e você está progredindo bem rumo às suas metas! Configure a chave API nos Segredos para obter insights de inteligência artificial reais.",
+          text: `Olá! Sou o **FinBot** 🤖. Notei que a chave da API do Gemini não foi configurada. \n\nNo entanto, consigo ler o teu perfil atualizado: tens uma **conta de ${typeLabel}** registada em nome de **${financialData.userName || "Henrique"}**.\n\nPara obteres conselhos e inteligência artificial reais, insere uma chave API do Gemini nas tuas configurações em **Perfil & Definições**!`,
           isDemo: true
         });
       }
+
+      const client = new GoogleGenAI({
+        apiKey: userApiKey,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
+        },
+      });
 
       // Structure financial context for the system prompt
       const userName = financialData.userName || "Henrique";
@@ -61,17 +73,40 @@ async function startServer() {
       const transactions = financialData.transactions || [];
       const goals = financialData.goals || [];
       const budgets = financialData.budgets || [];
+      const accountType = financialData.accountType || "personal";
+      const accountTypeLabel = accountType === "company" ? "Empresa / Corporativo (Lda.)" : accountType === "family" ? "Familiar" : "Pessoal Singular";
 
-      const systemInstruction = `Você é o FinBot 🤖, o assistente financeiro pessoal de inteligência artificial da FinFalo — uma fintech moderna lançada em 2026. 
+      let familyInfo = "";
+      if (accountType === "family") {
+        familyInfo = `
+Informações de Gestão Familiar:
+- Número de Membros Totais na Família: ${financialData.familyMembersCount || 1}
+- Filhos Dependentes: ${financialData.familyChildrenCount || 0}
+- Membros Ativos (Trabalham): ${financialData.familyWorkingCount || 0}
+- Membros Adicionais Cadastrados:
+${
+  financialData.familyMembersList && financialData.familyMembersList.length > 0
+    ? financialData.familyMembersList.map((m: any) => `  * ${m.name} (${m.relation}) | ${m.works ? `Trabalha | Salário: ${m.salary.toLocaleString()} ${currency}` : "Não trabalha"}`).join('\n')
+    : "  * Nenhum membro adicional cadastrado ainda no perfil de família"
+}
+`;
+      }
+
+      const systemInstruction = `Você é o FinBot 🤖, o assistente financeiro de inteligência artificial da FinFalo — uma fintech moderna lançada em 2026. 
 Sua missão é dar insights precisos, conselhos acionáveis e responder a dúvidas sobre as finanças do utilizador de forma inteligente, simpática, profissional e direta.
 
-Dados atuais do utilizador (${userName}):
+Perfil de Categorização do Utilizador:
+- Nome do Utilizador: ${userName}
+- Categoria de Conta: ${accountTypeLabel} (Identifique e adapte de forma ultra-personalizada os conselhos sabendo que a conta é de empresa, família ou pessoal singular. Para famílias, fale sobre despesas coletivas, filhos, poupança conjunta e receitas consolidadas. Para empresas, aborde fluxo de caixa, IVA, provisão de imposto e lucros. Para pessoal singular, foque nos objetivos de poupança individuais e hábitos do utilizador).
+${familyInfo}
+
+Dados atuais do utilizador:
 - Moeda: ${currency}
 - Saldo Atual: ${balance.toLocaleString()} ${currency}
 - Receitas do Mês: ${incomes.toLocaleString()} ${currency}
 - Despesas do Mês: ${expenses.toLocaleString()} ${currency}
 - Saúde Financeira: ${healthScore}/100 (Classificação: ${healthScore >= 80 ? 'Boa' : healthScore >= 50 ? 'Razoável' : 'Crítica'})
-
+ 
 Últimas transações registadas:
 ${transactions.map((t: any) => `- ${t.date} | ${t.description} | ${t.type === 'income' ? '+' : '-'}${t.amount} ${currency} [Categoria: ${t.category}]`).join('\n')}
 

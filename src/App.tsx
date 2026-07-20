@@ -37,6 +37,45 @@ import OnboardingWizard from './components/OnboardingWizard';
 
 // Initial Seeding Data generator by account type
 function getSeedData(accountType: 'personal' | 'family' | 'company', userName: string, isOnboarded: boolean = true): FinancialState {
+  if (!isOnboarded) {
+    // Return a pristine, real, professional empty account state for real users - no simulated metrics or mock data
+    return {
+      userName: userName || (accountType === 'family' ? 'Família' : accountType === 'company' ? 'Empresa Lda.' : 'Utilizador'),
+      currency: 'Kz',
+      balance: 0,
+      incomes: 0,
+      expenses: 0,
+      healthScore: 100,
+      accountType,
+      isOnboarded: false,
+      showOnboardingAlert: true,
+      transactions: [],
+      goals: [],
+      budgets: [
+        { id: 'b1', category: 'Alimentação', limit: 0, spent: 0 },
+        { id: 'b2', category: 'Transporte', limit: 0, spent: 0 },
+        { id: 'b3', category: 'Internet', limit: 0, spent: 0 },
+        { id: 'b4', category: 'Água', limit: 0, spent: 0 },
+        { id: 'b5', category: 'Luz', limit: 0, spent: 0 },
+        { id: 'b6', category: 'Saúde', limit: 0, spent: 0 },
+        { id: 'b7', category: 'Educação', limit: 0, spent: 0 },
+        { id: 'b8', category: 'Outros', limit: 0, spent: 0 }
+      ],
+      notifications: [],
+      theme: 'dark',
+      autoSaveType: 'disabled',
+      autoSaveValue: 0,
+      isLoggedIn: true,
+      employees: [],
+      clients: [],
+      suppliers: [],
+      familyMembersCount: 1,
+      familyChildrenCount: 0,
+      familyWorkingCount: 1,
+      familyMembersList: []
+    };
+  }
+
   if (accountType === 'family') {
     return {
       userName: userName || 'Família Mendes',
@@ -219,12 +258,34 @@ export default function App() {
     const saved = localStorage.getItem('finfalo_state_2026');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        return {
+          safeActive: false,
+          safeType: 'disabled',
+          safeValue: 0,
+          safeBalance: 0,
+          safeLogs: [],
+          ...parsed
+        };
       } catch (e) {
-        return SEED_DATA;
+        return {
+          safeActive: false,
+          safeType: 'disabled',
+          safeValue: 0,
+          safeBalance: 0,
+          safeLogs: [],
+          ...SEED_DATA
+        };
       }
     }
-    return SEED_DATA;
+    return {
+      safeActive: false,
+      safeType: 'disabled',
+      safeValue: 0,
+      safeBalance: 0,
+      safeLogs: [],
+      ...SEED_DATA
+    };
   });
 
   const [activeTab, setActiveTab] = useState<string>('Início');
@@ -242,6 +303,15 @@ export default function App() {
   const [qaDesc, setQaDesc] = useState('');
   const [qaAmount, setQaAmount] = useState('');
   const [qaCategory, setQaCategory] = useState('');
+
+  // Intercept states for transaction authorization by PIN
+  const [pendingTxAction, setPendingTxAction] = useState<{
+    type: 'add' | 'edit';
+    newTx?: Omit<Transaction, 'id'>;
+    updatedTx?: Transaction;
+  } | null>(null);
+  const [txPinInput, setTxPinInput] = useState('');
+  const [txPinError, setTxPinError] = useState('');
 
   const handleLogout = () => {
     setIsLoggingOut(true);
@@ -331,8 +401,68 @@ export default function App() {
     };
   };
 
-  // Add transaction
+  // Intercept and request PIN for additions
   const handleAddTransaction = (newTx: Omit<Transaction, 'id'>) => {
+    setPendingTxAction({ type: 'add', newTx });
+    setTxPinInput('');
+    setTxPinError('');
+  };
+
+  // Intercept and request PIN for edits
+  const handleEditTransaction = (updatedTx: Transaction) => {
+    setPendingTxAction({ type: 'edit', updatedTx });
+    setTxPinInput('');
+    setTxPinError('');
+  };
+
+  const handleVerifyTxPin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setTxPinError('');
+
+    const usersStr = localStorage.getItem('finfalo_registered_users');
+    const users = usersStr ? JSON.parse(usersStr) : [];
+    const activeUser = users.find((u: any) => u.email.toLowerCase() === (state.email || '').toLowerCase());
+    const correctPin = activeUser?.pin || '123456';
+
+    if (txPinInput === correctPin) {
+      if (pendingTxAction) {
+        if (pendingTxAction.type === 'add' && pendingTxAction.newTx) {
+          // Block negative balance on addition of expenses
+          const txType = pendingTxAction.newTx.type;
+          const txAmount = pendingTxAction.newTx.amount;
+          if (txType === 'expense' && txAmount > state.balance) {
+            setTxPinError(`Saldo insuficiente! Não é possível realizar esta operação pois o saldo disponível ficaria negativo. O seu saldo disponível atual é de ${state.balance.toLocaleString()} ${state.currency}.`);
+            return;
+          }
+          executeAddTransaction(pendingTxAction.newTx);
+        } else if (pendingTxAction.type === 'edit' && pendingTxAction.updatedTx) {
+          // Block negative balance on edit of transactions
+          const originalTx = state.transactions.find(t => t.id === pendingTxAction.updatedTx!.id);
+          if (originalTx) {
+            let balanceDiff = 0;
+            if (originalTx.type === 'expense') balanceDiff += originalTx.amount;
+            else balanceDiff -= originalTx.amount;
+
+            if (pendingTxAction.updatedTx.type === 'expense') balanceDiff -= pendingTxAction.updatedTx.amount;
+            else balanceDiff += pendingTxAction.updatedTx.amount;
+
+            if (state.balance + balanceDiff < 0) {
+              setTxPinError(`Saldo insuficiente! Esta alteração deixaria o seu saldo disponível negativo (${(state.balance + balanceDiff).toLocaleString()} ${state.currency}).`);
+              return;
+            }
+          }
+          executeEditTransaction(pendingTxAction.updatedTx);
+        }
+      }
+      setPendingTxAction(null);
+      setTxPinInput('');
+    } else {
+      setTxPinError('PIN de segurança incorreto. Autorização recusada.');
+    }
+  };
+
+  // Real execution of adding transaction
+  const executeAddTransaction = (newTx: Omit<Transaction, 'id'>) => {
     const tx: Transaction = {
       ...newTx,
       id: 'tx_' + Date.now()
@@ -400,6 +530,54 @@ export default function App() {
       }
     }
 
+    // Automatic Cofre/Safe saving rule
+    let addedToSafe = 0;
+    const updatedSafeLogs = state.safeLogs ? [...state.safeLogs] : [];
+    if (newTx.type === 'income' && state.safeActive && state.safeType !== 'disabled') {
+      const sType = state.safeType || 'percentage';
+      const sValue = state.safeValue || 0;
+      if (sValue > 0) {
+        let deductionAmount = 0;
+        if (sType === 'percentage') {
+          deductionAmount = parseFloat((newTx.amount * (sValue / 100)).toFixed(2));
+        } else {
+          deductionAmount = sValue;
+        }
+        deductionAmount = Math.min(deductionAmount, newTx.amount);
+
+        if (deductionAmount > 0) {
+          addedToSafe = deductionAmount;
+          const safeExpenseTx: Transaction = {
+            id: 'tx_safe_' + Date.now() + '_auto',
+            description: `Reforço Automático do Cofre`,
+            amount: deductionAmount,
+            type: 'expense',
+            category: 'Cofre',
+            date: newTx.date || new Date().toISOString().split('T')[0]
+          };
+          updatedTxs = [safeExpenseTx, ...updatedTxs];
+
+          updatedSafeLogs.push({
+            id: 'log_' + Date.now(),
+            date: newTx.date || new Date().toISOString().split('T')[0],
+            amount: deductionAmount,
+            type: 'deposit',
+            reason: `Entrada: ${newTx.description}`
+          });
+
+          const displaySafeStr = sType === 'percentage' ? `${sValue}%` : `${sValue} ${state.currency}`;
+          const safeNotif: Notification = {
+            id: 'n_safe_' + Date.now(),
+            text: `Cofre FinFalo: Retirámos ${displaySafeStr} (${deductionAmount.toLocaleString()} ${state.currency}) da entrada "${newTx.description}" e guardámos de forma segura no seu Cofre Virtual!`,
+            type: 'success',
+            date: 'Hoje',
+            read: false
+          };
+          updatedNotifications = [safeNotif, ...updatedNotifications];
+        }
+      }
+    }
+
     const stats = updateFinancials(updatedTxs, updatedGoals, state.budgets);
 
     setState(prev => ({
@@ -407,12 +585,14 @@ export default function App() {
       transactions: updatedTxs,
       goals: updatedGoals,
       notifications: updatedNotifications,
+      safeBalance: parseFloat(((prev.safeBalance || 0) + addedToSafe).toFixed(2)),
+      safeLogs: updatedSafeLogs,
       ...stats
     }));
   };
 
-  // Edit transaction
-  const handleEditTransaction = (updatedTx: Transaction) => {
+  // Real execution of editing transaction
+  const executeEditTransaction = (updatedTx: Transaction) => {
     const updatedTxs = state.transactions.map(t => t.id === updatedTx.id ? updatedTx : t);
     const stats = updateFinancials(updatedTxs, state.goals, state.budgets);
 
@@ -809,12 +989,31 @@ export default function App() {
         <OnboardingWizard
           financialState={state}
           onComplete={(updates) => {
-            setState(prev => ({
-              ...prev,
-              ...updates,
-              isOnboarded: true,
-              showOnboardingAlert: false
-            }));
+            setState(prev => {
+              const newState = {
+                ...prev,
+                ...updates,
+                isOnboarded: true,
+                showOnboardingAlert: false
+              };
+              
+              // If they input a monthlyIncome during onboarding, set it as the initial income and balance, and record a transaction
+              if (updates.monthlyIncome && updates.monthlyIncome > 0 && prev.balance === 0) {
+                const initialTx = {
+                  id: `tx_init_${Date.now()}`,
+                  description: prev.accountType === 'company' ? 'Faturação Mensal Inicial' : 'Salário Mensal Inicial',
+                  amount: updates.monthlyIncome,
+                  type: 'income' as const,
+                  category: prev.accountType === 'company' ? 'Vendas' : 'Salário',
+                  date: new Date().toISOString().split('T')[0]
+                };
+                newState.balance = updates.monthlyIncome;
+                newState.incomes = updates.monthlyIncome;
+                newState.transactions = [initialTx];
+              }
+              
+              return newState;
+            });
           }}
           onSkip={() => {
             setState(prev => ({
@@ -828,9 +1027,9 @@ export default function App() {
 
       {/* Mobile backdrop overlay to close sidebar */}
       {isSidebarOpen && (
-        <div 
+        <span 
           onClick={() => setIsSidebarOpen(false)}
-          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-30 lg:hidden"
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-30 lg:hidden block"
         />
       )}
 
@@ -842,12 +1041,15 @@ export default function App() {
           {/* Logo container */}
           <div className="p-6 border-b border-[#0869A6]/25 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-[#0869A6]/15 border border-[#0869A6]/30 flex items-center justify-center text-[#51a629] font-display font-black text-lg filter drop-shadow-[0_0_8px_rgba(81,166,41,0.2)]">
-                FF
-              </div>
+              <svg className="w-10 h-10 text-[#51a629] shrink-0" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="50" cy="50" r="42" stroke="currentColor" strokeWidth="6" className="opacity-20" />
+                <path d="M30 65C30 42 45 32 70 32" stroke="currentColor" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M45 70C45 55 55 45 70 45" stroke="currentColor" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="70" cy="32" r="7" fill="#51a629" className="animate-pulse" />
+              </svg>
               <div>
                 <span className="font-display font-black text-lg text-white uppercase tracking-wider block">FinFalo</span>
-                <span className="text-[9px] text-[#51a629] font-mono font-bold tracking-widest block -mt-1 uppercase">FINTECH 2026</span>
+                <span className="text-[9px] text-[#51a629] font-mono font-bold tracking-widest block -mt-1 uppercase">FINTECH INTELIGENTE</span>
               </div>
             </div>
             <button 
@@ -937,7 +1139,7 @@ export default function App() {
       <div className="flex-1 lg:pl-64 flex flex-col min-h-screen">
         
         {/* Top bar header */}
-        <header className="sticky top-0 bg-[#031c33]/80 backdrop-blur-md border-b border-[#0869A6]/20 z-30 px-6 py-4 flex items-center justify-between">
+        <header className="sticky top-0 bg-[#031c33]/80 backdrop-blur-md border-b border-[#0869A6]/20 z-30 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button 
               onClick={() => setIsSidebarOpen(true)}
@@ -1014,7 +1216,7 @@ export default function App() {
         </header>
 
         {/* Dynamic Inner Page View Component */}
-        <main className="flex-1 p-6 pb-24 md:pb-6 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-3 sm:p-6 pb-24 md:pb-6 max-w-7xl w-full mx-auto">
           {renderView()}
         </main>
 
@@ -1055,13 +1257,13 @@ export default function App() {
         </button>
 
         {/* Shared Global Footer */}
-        <footer className="border-t border-slate-900 py-6 px-6 text-center text-[11px] text-slate-500 space-y-2 mt-auto">
-          <p>© 2026 FinFalo S.A. Todos os direitos reservados. Gestão de Finanças de Nova Geração.</p>
-          <div className="flex justify-center gap-4 text-slate-400 font-semibold">
+        <footer className="border-t border-slate-900 py-6 px-4 sm:px-6 text-center text-[10px] sm:text-[11px] text-slate-500 space-y-3 mt-auto">
+          <p className="max-w-md mx-auto leading-relaxed">© 2026 FinFalo S.A. Todos os direitos reservados. Gestão de Finanças de Nova Geração.</p>
+          <div className="flex flex-wrap justify-center items-center gap-x-3 gap-y-1 text-slate-400 font-semibold">
             <a href="#privacy" className="hover:text-emerald-400 transition-colors">Política de Privacidade</a>
-            <span>•</span>
+            <span className="text-slate-700 hidden sm:inline">•</span>
             <a href="#terms" className="hover:text-emerald-400 transition-colors">Termos de Utilização</a>
-            <span>•</span>
+            <span className="text-slate-700 hidden sm:inline">•</span>
             <a href="#support" className="hover:text-emerald-400 transition-colors">Suporte Técnico</a>
           </div>
         </footer>
@@ -1182,6 +1384,91 @@ export default function App() {
                 Sim, Terminar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transaction PIN Verification Modal overlay */}
+      {pendingTxAction && (
+        <div className="fixed inset-0 bg-[#031c33]/90 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6 text-center">
+            <div className="flex justify-center">
+              <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 animate-pulse">
+                <Shield className="w-8 h-8" />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-lg font-display font-bold text-white">Autorização de Segurança</h3>
+              <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+                Por favor, introduza o seu **PIN de 6 dígitos** para autorizar {pendingTxAction.type === 'add' ? 'a criação deste novo movimento' : 'esta alteração na transação'}.
+              </p>
+              {pendingTxAction.newTx && (
+                <div className="mt-3 px-4 py-2 bg-slate-950/50 border border-slate-800/40 rounded-xl inline-flex flex-col items-center">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Valor do Movimento:</span>
+                  <span className={`text-sm font-bold font-mono mt-0.5 ${pendingTxAction.newTx.type === 'income' ? 'text-[#51a629]' : 'text-rose-400'}`}>
+                    {pendingTxAction.newTx.type === 'income' ? '+' : '-'}{pendingTxAction.newTx.amount.toLocaleString()} {state.currency}
+                  </span>
+                  <span className="text-[11px] text-slate-300 italic font-medium mt-1">"{pendingTxAction.newTx.description}"</span>
+                </div>
+              )}
+              {pendingTxAction.updatedTx && (
+                <div className="mt-3 px-4 py-2 bg-slate-950/50 border border-slate-800/40 rounded-xl inline-flex flex-col items-center">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Valor Editado:</span>
+                  <span className={`text-sm font-bold font-mono mt-0.5 ${pendingTxAction.updatedTx.type === 'income' ? 'text-[#51a629]' : 'text-rose-400'}`}>
+                    {pendingTxAction.updatedTx.type === 'income' ? '+' : '-'}{pendingTxAction.updatedTx.amount.toLocaleString()} {state.currency}
+                  </span>
+                  <span className="text-[11px] text-slate-300 italic font-medium mt-1">"{pendingTxAction.updatedTx.description}"</span>
+                </div>
+              )}
+            </div>
+
+            {txPinError && (
+              <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 p-3 rounded-xl text-xs flex items-start gap-2 text-left">
+                <AlertTriangle className="w-4.5 h-4.5 shrink-0 mt-0.5 text-rose-400" />
+                <span>{txPinError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleVerifyTxPin} className="space-y-4">
+              <div>
+                <input
+                  type="password"
+                  pattern="\d*"
+                  inputMode="numeric"
+                  maxLength={6}
+                  required
+                  autoFocus
+                  placeholder="••••••"
+                  value={txPinInput}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '');
+                    if (val.length <= 6) setTxPinInput(val);
+                  }}
+                  className="w-full bg-slate-950 border border-slate-850 rounded-xl px-4 py-3 text-center text-lg font-bold tracking-[0.5em] text-white outline-none focus:border-amber-500/50"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingTxAction(null);
+                    setTxPinInput('');
+                  }}
+                  className="w-1/2 py-3 bg-slate-950 hover:bg-slate-900 border border-slate-800 text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={txPinInput.length !== 6}
+                  className="w-1/2 py-3 bg-[#51a629] hover:bg-[#278c36] text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-[#51a629]/10 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Autorizar
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

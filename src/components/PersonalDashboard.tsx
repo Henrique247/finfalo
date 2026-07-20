@@ -77,29 +77,111 @@ export default function PersonalDashboard({
 
   // Graph Data logic
   const getGraphData = () => {
+    const isTestAccount = financialState.email && ['personal@finfalo.com', 'familia@finfalo.com', 'empresa@finfalo.com'].includes(financialState.email.toLowerCase());
+    
+    if (isTestAccount) {
+      if (graphPeriod === '7d') {
+        return {
+          labels: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'],
+          incomes: [12000, 0, 45000, 0, 10000, 15000, 0],
+          expenses: [3500, 8000, 12000, 4000, 15000, 22000, 5000],
+        };
+      } else if (graphPeriod === '12m') {
+        return {
+          labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'],
+          incomes: [220000, 250000, 230000, 260000, 250000, 240000, 280000, 250000, 250000, 260000, 270000, 290000],
+          expenses: [180000, 195000, 160000, 175000, 210000, 185000, 170000, 160000, 150000, 180000, 210000, 230000],
+        };
+      } else { // 30d
+        return {
+          labels: ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'],
+          incomes: [80000, 60000, 70000, 90000],
+          expenses: [45000, 55000, 38000, 62000],
+        };
+      }
+    }
+
+    // Real Account: calculate dynamic values from real user transactions
     if (graphPeriod === '7d') {
-      return {
-        labels: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'],
-        incomes: [12000, 0, 45000, 0, 10000, 15000, 0],
-        expenses: [3500, 8000, 12000, 4000, 15000, 22000, 5000],
-      };
+      const daysOfWeek = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+      const labels: string[] = [];
+      const incomes: number[] = [];
+      const expenses: number[] = [];
+      
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        const dayLabel = daysOfWeek[d.getDay()];
+        labels.push(dayLabel);
+        
+        const dayIncomes = transactions
+          .filter(t => t.date === dateStr && t.type === 'income')
+          .reduce((sum, t) => sum + t.amount, 0);
+          
+        const dayExpenses = transactions
+          .filter(t => t.date === dateStr && t.type === 'expense')
+          .reduce((sum, t) => sum + t.amount, 0);
+          
+        incomes.push(dayIncomes);
+        expenses.push(dayExpenses);
+      }
+      
+      return { labels, incomes, expenses };
     } else if (graphPeriod === '12m') {
-      return {
-        labels: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'],
-        incomes: [220000, 250000, 230000, 260000, 250000, 240000, 280000, 250000, 250000, 260000, 270000, 290000],
-        expenses: [180000, 195000, 160000, 175000, 210000, 185000, 170000, 160000, 150000, 180000, 210000, 230000],
-      };
+      const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      const labels: string[] = [];
+      const incomes: number[] = [];
+      const expenses: number[] = [];
+      
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - i);
+        const year = d.getFullYear();
+        const month = d.getMonth();
+        labels.push(monthNames[month]);
+        
+        const mTransactions = transactions.filter(t => {
+          if (!t.date) return false;
+          const txDate = new Date(t.date);
+          return txDate.getFullYear() === year && txDate.getMonth() === month;
+        });
+        
+        incomes.push(mTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0));
+        expenses.push(mTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0));
+      }
+      
+      return { labels, incomes, expenses };
     } else { // 30d
-      return {
-        labels: ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'],
-        incomes: [80000, 60000, 70000, 90000],
-        expenses: [45000, 55000, 38000, 62000],
-      };
+      const labels = ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4'];
+      const incomes = [0, 0, 0, 0];
+      const expenses = [0, 0, 0, 0];
+      const now = Date.now();
+      const oneDay = 1000 * 60 * 60 * 24;
+      
+      for (let w = 0; w < 4; w++) {
+        const daysAgoStart = 28 - w * 7;
+        const daysAgoEnd = 28 - (w + 1) * 7;
+        
+        const wTransactions = transactions.filter(t => {
+          if (!t.date) return false;
+          const txDate = new Date(t.date);
+          const diffTime = now - txDate.getTime();
+          const diffDays = diffTime / oneDay;
+          return diffDays <= daysAgoStart && diffDays > daysAgoEnd;
+        });
+        
+        incomes[w] = wTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+        expenses[w] = wTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+      }
+      
+      return { labels, incomes, expenses };
     }
   };
 
   const graphData = getGraphData();
   const maxVal = Math.max(...graphData.incomes, ...graphData.expenses) * 1.15 || 10000;
+  const isGraphEmpty = graphData.incomes.every(v => v === 0) && graphData.expenses.every(v => v === 0);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -240,7 +322,7 @@ export default function PersonalDashboard({
       {/* Quick Actions Grid */}
       <div className="space-y-2">
         <h3 className="text-[10px] sm:text-xs font-display font-bold text-[#A2C7E5] uppercase tracking-widest pl-1">Ações Rápidas</h3>
-        <div className="grid grid-cols-4 gap-2 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
           <button
             onClick={() => onOpenQuickAction('income')}
             className="flex flex-col items-center justify-center p-2 sm:p-3 rounded-xl sm:rounded-2xl bg-[#0869A6]/10 hover:bg-[#0869A6]/20 border border-[#0869A6]/25 transition-all text-center cursor-pointer group min-w-0"
@@ -370,6 +452,16 @@ export default function PersonalDashboard({
                 </div>
               ))}
             </div>
+
+            {isGraphEmpty && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-xs rounded-2xl text-center p-4 border border-slate-800">
+                <TrendingUp className="w-8 h-8 text-[#51a629] mb-2 animate-pulse" />
+                <span className="text-xs font-bold text-white block">Sem Movimentações</span>
+                <span className="text-[10px] text-slate-400 mt-1 leading-normal max-w-xs">
+                  Registe as suas despesas e depósitos na Carteira para gerar o gráfico dinâmico!
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center justify-between border-t border-slate-800/60 pt-3 text-[10px] sm:text-[11px] font-bold gap-2">

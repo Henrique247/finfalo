@@ -23,6 +23,7 @@ import {
   CheckSquare,
   FileSpreadsheet
 } from 'lucide-react';
+import { jsPDF } from 'jspdf';
 import { FinancialState, Transaction, Budget } from '../types';
 
 interface WalletProps {
@@ -294,6 +295,116 @@ export default function Wallet({
 
   const categoryBreakdown = getCategoryBreakdown();
 
+  const handleExportPDF = () => {
+    const doc = new jsPDF();
+    
+    // Header Style Banner
+    doc.setFillColor(3, 28, 51); // Deep blue base
+    doc.rect(0, 0, 210, 40, 'F');
+    
+    // Brand title & subtitle
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text('FINFALO', 15, 20);
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Seguranca & Planeamento Financeiro Inteligente', 15, 28);
+    doc.text(`Data de Emissao: ${new Date().toLocaleDateString('pt-PT')}`, 145, 20);
+    doc.text(`Moeda: ${currency}`, 145, 28);
+    
+    // Account details
+    doc.setTextColor(33, 33, 33);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Extrato de Movimentacoes', 15, 55);
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Titular: ${financialState.userName}`, 15, 65);
+    doc.text(`Email: ${financialState.email || 'N/A'}`, 15, 71);
+    doc.text(`Tipo de Conta: ${financialState.accountType === 'company' ? 'Empresarial' : financialState.accountType === 'family' ? 'Familiar' : 'Pessoal'}`, 15, 77);
+    
+    // Summary Card on Right
+    doc.setFillColor(244, 246, 249);
+    doc.rect(130, 48, 65, 33, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.text('Resumo de Caixa', 135, 55);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Total Entradas: ${totalIncomesFiltered.toLocaleString()} ${currency}`, 135, 63);
+    doc.text(`Total Saidas: ${totalExpensesFiltered.toLocaleString()} ${currency}`, 135, 70);
+    doc.text(`Saldo Liquido: ${(totalIncomesFiltered - totalExpensesFiltered).toLocaleString()} ${currency}`, 135, 77);
+    
+    // Table Headers
+    doc.setFillColor(3, 28, 51);
+    doc.rect(15, 90, 180, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text('Data', 18, 95);
+    doc.text('Descricao', 45, 95);
+    doc.text('Categoria', 105, 95);
+    doc.text('Tipo', 145, 95);
+    doc.text(`Valor (${currency})`, 170, 95);
+    
+    // Rows
+    doc.setTextColor(33, 33, 33);
+    doc.setFont('helvetica', 'normal');
+    let y = 104;
+    
+    filteredTxList.forEach((tx, idx) => {
+      if (y > 275) {
+        doc.addPage();
+        // Draw Header on new page
+        doc.setFillColor(3, 28, 51);
+        doc.rect(15, 15, 180, 8, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Data', 18, 20);
+        doc.text('Descricao', 45, 20);
+        doc.text('Categoria', 105, 20);
+        doc.text('Tipo', 145, 20);
+        doc.text(`Valor (${currency})`, 170, 20);
+        
+        doc.setTextColor(33, 33, 33);
+        doc.setFont('helvetica', 'normal');
+        y = 29;
+      }
+      
+      if (idx % 2 === 1) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(15, y - 5, 180, 7, 'F');
+      }
+      
+      doc.text(tx.date, 18, y);
+      doc.text(tx.description.substring(0, 30), 45, y);
+      doc.text(tx.category, 105, y);
+      
+      const isIncome = tx.type === 'income';
+      doc.setTextColor(isIncome ? 39 : 185, isIncome ? 110 : 28, isIncome ? 44 : 28);
+      doc.setFont('helvetica', 'bold');
+      doc.text(isIncome ? 'Entrada' : 'Saida', 145, y);
+      
+      doc.text(`${isIncome ? '+' : '-'}${tx.amount.toLocaleString()}`, 170, y);
+      doc.setTextColor(33, 33, 33);
+      doc.setFont('helvetica', 'normal');
+      
+      doc.setDrawColor(226, 232, 240);
+      doc.line(15, y + 2, 195, y + 2);
+      
+      y += 9;
+    });
+    
+    // Page Footer
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Este documento serve como extrato oficial do aplicativo FinFalo.', 15, 287);
+    doc.text('https://finfalo.com', 170, 287);
+    
+    doc.save(`FinFalo_Extrato_${financialState.userName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
   return (
     <div className="space-y-6">
       {/* View Header */}
@@ -303,7 +414,7 @@ export default function Wallet({
       </div>
 
       {/* Main Tabs Selection */}
-      <div className="flex overflow-x-auto whitespace-nowrap scrollbar-none border-b border-[#0869A6]/20 scroll-smooth mb-1">
+      <div className="flex overflow-x-auto whitespace-nowrap custom-tabs-scroll border-b border-[#0869A6]/20 scroll-smooth mb-2 pb-1">
         <button
           onClick={() => { setActiveTab('receitas'); handleCancelEdit(); }}
           className={`py-2 px-3 sm:py-3 sm:px-6 text-xs sm:text-sm font-display font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 sm:gap-2 shrink-0 ${
@@ -502,7 +613,8 @@ export default function Wallet({
                       Mapeamento de Transações e Categorias
                     </h3>
 
-                    <div className="overflow-x-auto">
+                    {/* Desktop table - visible on md and up */}
+                    <div className="hidden md:block overflow-x-auto">
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="border-b border-slate-800 text-[10px] uppercase font-bold tracking-widest text-slate-400">
@@ -556,6 +668,57 @@ export default function Wallet({
                           ))}
                         </tbody>
                       </table>
+                    </div>
+
+                    {/* Mobile cards list - visible on screens under md */}
+                    <div className="block md:hidden space-y-4">
+                      {importTransactions.map(item => (
+                        <div key={item.id} className="bg-slate-950/60 border border-slate-800 p-4 rounded-xl space-y-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <span className="text-[10px] font-mono text-slate-400 block">{item.date}</span>
+                              <h4 className="text-xs font-bold text-white mt-0.5 leading-snug break-words">{item.description}</h4>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider shrink-0 ${
+                              item.type === 'income' 
+                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/10' 
+                                : 'bg-rose-500/15 text-rose-400 border border-rose-500/10'
+                            }`}>
+                              {item.type === 'income' ? 'Receita' : 'Despesa'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between border-t border-slate-800/60 pt-2.5">
+                            <span className="text-[10px] text-slate-400">Valor</span>
+                            <span className={`text-xs font-mono font-bold ${
+                              item.type === 'income' ? 'text-emerald-400' : 'text-slate-200'
+                            }`}>
+                              {item.type === 'income' ? '+' : '-'}{item.amount.toLocaleString()} {currency}
+                            </span>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="block text-[10px] text-slate-400">Mapeamento da Categoria</label>
+                            <select
+                              value={item.category}
+                              onChange={(e) => handleUpdateItemCategory(item.id, e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-800 hover:border-slate-700 text-xs text-white rounded-lg px-2.5 py-2 outline-none cursor-pointer focus:border-[#51a629]/50"
+                            >
+                              {(item.type === 'income' ? incomeCategories : expenseCategories).map(cat => (
+                                <option key={cat} value={cat}>{cat}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="flex items-center justify-between border-t border-slate-800/40 pt-2 text-[10px]">
+                            <span className="text-slate-500">AI Sugestão</span>
+                            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#51a629]/10 border border-[#51a629]/20 text-[#51a629] font-bold">
+                              <Sparkles className="w-2.5 h-2.5" />
+                              <span>100% Match</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -692,12 +855,22 @@ export default function Wallet({
                 {/* Transactions List with Search & Month Filters */}
                 <div className="fintech-card p-4 sm:p-6 rounded-2xl">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-5">
-                    <h3 className="text-sm font-display font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-                      Histórico Filtrado 
-                      <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2.5 py-0.5 rounded-full border border-emerald-500/20 font-mono normal-case">
-                        {filteredTxList.length} transações
-                      </span>
-                    </h3>
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <h3 className="text-sm font-display font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                        Histórico Filtrado 
+                        <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2.5 py-0.5 rounded-full border border-emerald-500/20 font-mono normal-case">
+                          {filteredTxList.length} transações
+                        </span>
+                      </h3>
+                      <button
+                        onClick={handleExportPDF}
+                        disabled={filteredTxList.length === 0}
+                        className="py-1 px-2.5 rounded-lg bg-[#51a629]/15 hover:bg-[#51a629]/25 text-[#51a629] hover:text-white border border-[#51a629]/30 text-[10px] font-bold font-sans transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Exportar em formato PDF"
+                      >
+                        <FileText className="w-3.5 h-3.5" /> Exportar PDF
+                      </button>
+                    </div>
 
                     {/* Search and Filter Inputs - 2 columns on mobile, 3 columns on desktop */}
                     <div className="grid grid-cols-12 gap-2 shrink-0 md:max-w-md w-full">
@@ -735,8 +908,8 @@ export default function Wallet({
                   {/* List Body */}
                   <div className="divide-y divide-slate-800/60 max-h-96 overflow-y-auto pr-1">
                     {filteredTxList.map((tx) => (
-                      <div key={tx.id} className="py-2 sm:py-3 flex items-center justify-between gap-2.5 group hover:bg-slate-900/10 transition-colors">
-                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                      <div key={tx.id} className="py-2.5 sm:py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-2 group hover:bg-slate-900/10 transition-colors">
+                        <div className="flex items-center gap-2 sm:gap-3 min-w-0 w-full sm:w-auto">
                           <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-md sm:rounded-lg flex items-center justify-center shrink-0 border ${
                             tx.type === 'income' 
                               ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
@@ -744,7 +917,7 @@ export default function Wallet({
                           }`}>
                             {tx.type === 'income' ? <ArrowUpRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <ArrowDownRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
                           </div>
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <h4 className="text-xs font-bold text-white truncate leading-tight">{tx.description}</h4>
                             <span className="text-[9px] sm:text-[10px] text-slate-500 font-mono block mt-0.5 truncate leading-none">
                               <span className="sm:hidden">{getCompactDate(tx.date)}</span>
@@ -753,23 +926,25 @@ export default function Wallet({
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-end gap-2 sm:gap-4 shrink-0">
+                        <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4 pl-9 sm:pl-0 w-full sm:w-auto shrink-0">
                           <div className={`text-xs font-bold font-mono shrink-0 ${tx.type === 'income' ? 'text-emerald-400' : 'text-slate-200'}`}>
                             {tx.type === 'income' ? '+' : '-'}{tx.amount.toLocaleString()} {currency}
                           </div>
                           {/* Action Buttons */}
-                          <div className="flex gap-1 shrink-0 opacity-100 sm:opacity-80 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                          <div className="flex gap-1.5 shrink-0 opacity-100 sm:opacity-80 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                             <button
                               onClick={() => handleEditInit(tx)}
-                              className="p-1 sm:p-1.5 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:text-white cursor-pointer"
+                              className="p-1 sm:p-1.5 rounded bg-slate-800 border border-slate-700 text-slate-400 hover:text-white cursor-pointer active:scale-95"
+                              title="Editar"
                             >
-                              <Edit2 className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                              <Edit2 className="w-3 h-3" />
                             </button>
                             <button
                               onClick={() => onDeleteTransaction(tx.id)}
-                              className="p-1 sm:p-1.5 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:text-rose-300 cursor-pointer"
+                              className="p-1 sm:p-1.5 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:text-rose-300 cursor-pointer active:scale-95"
+                              title="Eliminar"
                             >
-                              <Trash2 className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                              <Trash2 className="w-3 h-3" />
                             </button>
                           </div>
                         </div>

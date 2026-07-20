@@ -36,8 +36,8 @@ interface AuthAndLandingProps {
 }
 
 export default function AuthAndLanding({ onLoginSuccess, currency }: AuthAndLandingProps) {
-  // Screens: 'landing' | 'login' | 'register'
-  const [screen, setScreen] = useState<'landing' | 'login' | 'register'>('landing');
+  // Screens: 'landing' | 'login' | 'register' | 'set-pin' | 'enter-pin'
+  const [screen, setScreen] = useState<'landing' | 'login' | 'register' | 'set-pin' | 'enter-pin'>('landing');
   
   // Login Form
   const [loginEmail, setLoginEmail] = useState('');
@@ -57,20 +57,38 @@ export default function AuthAndLanding({ onLoginSuccess, currency }: AuthAndLand
   const [regError, setRegError] = useState('');
   const [regSuccess, setRegSuccess] = useState(false);
 
+  // Custom states for PIN flow
+  const [matchedUser, setMatchedUser] = useState<any>(null);
+  const [tempRegisterData, setTempRegisterData] = useState<any>(null);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState('');
+
   // Contact Form State
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactMsg, setContactMsg] = useState('');
   const [contactSent, setContactSent] = useState(false);
 
-  // Users Mock Database inside LocalStorage
+  // Users Mock Database inside LocalStorage with PIN support
   useEffect(() => {
     const existing = localStorage.getItem('finfalo_registered_users');
-    if (!existing) {
+    let needsUpdate = false;
+    if (existing) {
+      try {
+        const parsed = JSON.parse(existing);
+        // Migrate default users if they don't have PIN
+        if (parsed.length > 0 && !parsed[0].pin) {
+          needsUpdate = true;
+        }
+      } catch (e) {
+        needsUpdate = true;
+      }
+    }
+    if (!existing || needsUpdate) {
       const defaultUsers = [
-        { email: 'personal@finfalo.com', password: '123456', name: 'Henrique', type: 'personal' },
-        { email: 'familia@finfalo.com', password: '123456', name: 'Família Mendes', type: 'family' },
-        { email: 'empresa@finfalo.com', password: '123456', name: 'FinFalo Soluções', type: 'company' }
+        { email: 'personal@finfalo.com', password: '123456', pin: '123456', name: 'Henrique', type: 'personal' },
+        { email: 'familia@finfalo.com', password: '123456', pin: '123456', name: 'Família Mendes', type: 'family' },
+        { email: 'empresa@finfalo.com', password: '123456', pin: '123456', name: 'FinFalo Soluções', type: 'company' }
       ];
       localStorage.setItem('finfalo_registered_users', JSON.stringify(defaultUsers));
     }
@@ -93,9 +111,12 @@ export default function AuthAndLanding({ onLoginSuccess, currency }: AuthAndLand
     );
 
     if (matched) {
-      onLoginSuccess(matched.name, matched.type, matched.email);
+      setMatchedUser(matched);
+      setScreen('enter-pin');
+      setPinInput('');
+      setPinError('');
     } else {
-      setLoginError('Credenciais inválidas. Use personal@finfalo.com, familia@finfalo.com ou empresa@finfalo.com (palavra-passe: 123456) ou registe uma nova conta.');
+      setLoginError('Credenciais inválidas. Use os e-mails das contas sugeridas abaixo (palavra-passe: 123456) ou registe uma nova conta.');
     }
   };
 
@@ -106,6 +127,7 @@ export default function AuthAndLanding({ onLoginSuccess, currency }: AuthAndLand
 
     // Validate fields according to selected account type
     let resolvedName = '';
+    let nameToValidateForNumbers = '';
     if (regAccountType === 'personal') {
       if (!regName || !regEmail || !regPassword || !regConfirmPassword) {
         setRegError('Preencha todos os quatro campos do cadastro pessoal.');
@@ -116,18 +138,27 @@ export default function AuthAndLanding({ onLoginSuccess, currency }: AuthAndLand
         return;
       }
       resolvedName = regName;
+      nameToValidateForNumbers = regName;
     } else if (regAccountType === 'family') {
       if (!regResponsibleName || !regFamilyName || !regEmail || !regPassword) {
         setRegError('Preencha todos os quatro campos do cadastro familiar.');
         return;
       }
       resolvedName = regFamilyName;
+      nameToValidateForNumbers = regResponsibleName;
     } else if (regAccountType === 'company') {
       if (!regCompanyName || !regResponsibleName || !regEmail || !regPassword) {
         setRegError('Preencha todos os quatro campos do cadastro de empresa.');
         return;
       }
       resolvedName = regCompanyName;
+      nameToValidateForNumbers = regResponsibleName;
+    }
+
+    // Name validation: cannot contain numbers
+    if (/\d/.test(nameToValidateForNumbers)) {
+      setRegError('O nome não pode conter números. Por favor, introduza o seu nome correto sem algarismos.');
+      return;
     }
 
     if (regPassword.length < 6) {
@@ -144,25 +175,47 @@ export default function AuthAndLanding({ onLoginSuccess, currency }: AuthAndLand
       return;
     }
 
-    const newUser = {
+    setTempRegisterData({
       email: regEmail,
       password: regPassword,
       name: resolvedName,
       type: regAccountType,
       responsibleName: regResponsibleName,
-      // For family, save family name explicitly too
       familyName: regAccountType === 'family' ? regFamilyName : undefined,
       companyName: regAccountType === 'company' ? regCompanyName : undefined,
+    });
+
+    setScreen('set-pin');
+    setPinInput('');
+    setPinError('');
+  };
+
+  const handleConfirmSetPin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinError('');
+
+    if (pinInput.length !== 6 || !/^\d+$/.test(pinInput)) {
+      setPinError('O PIN deve conter exatamente 6 números.');
+      return;
+    }
+
+    if (!tempRegisterData) return;
+
+    const usersStr = localStorage.getItem('finfalo_registered_users');
+    const users = usersStr ? JSON.parse(usersStr) : [];
+
+    const newUser = {
+      ...tempRegisterData,
+      pin: pinInput
     };
 
     const updatedUsers = [...users, newUser];
     localStorage.setItem('finfalo_registered_users', JSON.stringify(updatedUsers));
-    
+
     setRegSuccess(true);
     
-    // Auto login immediately as requested! Reduz abandono no cadastro
     setTimeout(() => {
-      onLoginSuccess(resolvedName, regAccountType, regEmail);
+      onLoginSuccess(newUser.name, newUser.type, newUser.email);
       setRegSuccess(false);
       // Reset registration states
       setRegName('');
@@ -173,7 +226,26 @@ export default function AuthAndLanding({ onLoginSuccess, currency }: AuthAndLand
       setRegCompanyName('');
       setRegResponsibleName('');
       setRegStep(1);
+      setTempRegisterData(null);
+      setPinInput('');
     }, 1200);
+  };
+
+  const handleConfirmEnterPin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinError('');
+
+    if (!matchedUser) return;
+
+    const savedPin = matchedUser.pin || '123456';
+
+    if (pinInput === savedPin) {
+      onLoginSuccess(matchedUser.name, matchedUser.type, matchedUser.email);
+      setMatchedUser(null);
+      setPinInput('');
+    } else {
+      setPinError('PIN de segurança incorreto. Por favor, tente novamente.');
+    }
   };
 
   const handleContactSubmit = (e: React.FormEvent) => {
@@ -282,6 +354,173 @@ export default function AuthAndLanding({ onLoginSuccess, currency }: AuthAndLand
               className="text-xs text-[#51a629] hover:underline font-bold cursor-pointer"
             >
               Registar-se
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (screen === 'set-pin') {
+    return (
+      <div className="min-h-screen bg-[#031c33] flex items-center justify-center px-4 py-12 relative overflow-hidden font-sans">
+        {/* Background glow effects */}
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#51a629]/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-[#0869A6]/5 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="w-full max-w-md bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-3xl p-8 shadow-2xl relative z-10 text-center space-y-6">
+          <div className="flex justify-center mb-2">
+            <div className="w-16 h-16 rounded-2xl bg-[#51a629]/10 border border-[#51a629]/20 flex items-center justify-center text-[#51a629]">
+              <Shield className="w-8 h-8" />
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-xl font-display font-bold text-white">Definir PIN de Segurança</h2>
+            <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+              Crie um PIN numérico de 6 dígitos. Este PIN será solicitado sempre que iniciar sessão ou realizar movimentos (receitas, despesas, transferências, etc.) na sua conta.
+            </p>
+          </div>
+
+          {pinError && (
+            <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 p-3 rounded-xl text-xs flex items-start gap-2 text-left">
+              <AlertCircle className="w-4.5 h-4.5 shrink-0 mt-0.5" />
+              <span>{pinError}</span>
+            </div>
+          )}
+
+          {regSuccess && (
+            <div className="bg-emerald-500/10 border border-[#51a629]/20 text-[#51a629] p-3 rounded-xl text-xs flex items-start gap-2 text-left animate-pulse">
+              <CheckCircle2 className="w-4.5 h-4.5 shrink-0 mt-0.5" />
+              <span>PIN configurado com sucesso! Redirecionando para o seu cofre...</span>
+            </div>
+          )}
+
+          <form onSubmit={handleConfirmSetPin} className="space-y-4">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">PIN de 6 dígitos</label>
+              <input
+                type="password"
+                pattern="\d*"
+                inputMode="numeric"
+                maxLength={6}
+                required
+                autoFocus
+                placeholder="Ex: 123456"
+                value={pinInput}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '');
+                  if (val.length <= 6) setPinInput(val);
+                }}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3.5 text-center text-lg font-bold tracking-[0.5em] text-white outline-none focus:border-emerald-500/50"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={pinInput.length !== 6 || regSuccess}
+              className="w-full py-3.5 bg-[#51a629] hover:bg-[#278c36] text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-[#51a629]/10 cursor-pointer mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Confirmar e Criar Conta
+            </button>
+          </form>
+
+          <div className="text-center">
+            <button 
+              type="button"
+              onClick={() => {
+                setScreen('register');
+                setTempRegisterData(null);
+                setPinInput('');
+                setPinError('');
+              }}
+              className="text-xs text-slate-500 hover:text-white cursor-pointer"
+            >
+              Voltar ao Cadastro
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (screen === 'enter-pin') {
+    return (
+      <div className="min-h-screen bg-[#031c33] flex items-center justify-center px-4 py-12 relative overflow-hidden font-sans">
+        {/* Background glow effects */}
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#51a629]/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-[#0869A6]/5 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="w-full max-w-md bg-slate-900/80 backdrop-blur-md border border-slate-800 rounded-3xl p-8 shadow-2xl relative z-10 text-center space-y-6">
+          <div className="flex justify-center mb-2">
+            <div className="w-16 h-16 rounded-2xl bg-[#0869A6]/10 border border-[#0869A6]/20 flex items-center justify-center text-[#51a629]">
+              <Lock className="w-8 h-8" />
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-xl font-display font-bold text-white">Autorização por PIN</h2>
+            <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+              Olá, <strong className="text-white">{matchedUser?.name}</strong>. Introduza o seu PIN de segurança de 6 dígitos para aceder à sua conta.
+            </p>
+          </div>
+
+          {pinError && (
+            <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 p-3 rounded-xl text-xs flex items-start gap-2 text-left">
+              <AlertCircle className="w-4.5 h-4.5 shrink-0 mt-0.5" />
+              <span>{pinError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleConfirmEnterPin} className="space-y-4">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">PIN de 6 dígitos</label>
+              <input
+                type="password"
+                pattern="\d*"
+                inputMode="numeric"
+                maxLength={6}
+                required
+                autoFocus
+                placeholder="••••••"
+                value={pinInput}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, '');
+                  if (val.length <= 6) setPinInput(val);
+                }}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3.5 text-center text-lg font-bold tracking-[0.5em] text-white outline-none focus:border-emerald-500/50"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={pinInput.length !== 6}
+              className="w-full py-3.5 bg-[#51a629] hover:bg-[#278c36] text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-[#51a629]/10 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+            >
+              Desbloquear Conta
+            </button>
+          </form>
+
+          {/* Seed accounts hint text */}
+          {matchedUser && ['personal@finfalo.com', 'familia@finfalo.com', 'empresa@finfalo.com'].includes(matchedUser?.email?.toLowerCase()) && (
+            <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800/60 text-left">
+              <span className="text-[10px] font-bold text-[#51a629] uppercase tracking-wider block">Nota de Teste:</span>
+              <p className="text-[10px] text-slate-400 mt-1">O PIN padrão para esta conta de demonstração é <strong className="text-white">123456</strong>.</p>
+            </div>
+          )}
+
+          <div className="text-center">
+            <button 
+              type="button"
+              onClick={() => {
+                setScreen('login');
+                setMatchedUser(null);
+                setPinInput('');
+                setPinError('');
+              }}
+              className="text-xs text-slate-500 hover:text-white cursor-pointer"
+            >
+              Voltar ao Login
             </button>
           </div>
         </div>

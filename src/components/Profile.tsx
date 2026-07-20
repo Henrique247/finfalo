@@ -18,7 +18,8 @@ import {
   Briefcase,
   TrendingUp,
   BarChart3,
-  Lock
+  Lock,
+  Sparkles
 } from 'lucide-react';
 import { FinancialState } from '../types';
 
@@ -32,10 +33,26 @@ export default function Profile({ financialState, onUpdateState }: ProfileProps)
 
   // Profile fields
   const [name, setName] = useState(userName);
-  const [email, setEmail] = useState('henrique@finfalo.com');
+  const [email, setEmail] = useState(financialState.email || 'personal@finfalo.com');
   const [phone, setPhone] = useState('+244 923 000 000');
   const [password, setPassword] = useState('••••••••••••');
   const [showPassword, setShowPassword] = useState(false);
+
+  // Security PIN state
+  const [pin, setPin] = useState(() => {
+    try {
+      const usersStr = localStorage.getItem('finfalo_registered_users');
+      if (usersStr) {
+        const users = JSON.parse(usersStr);
+        const activeUser = users.find((u: any) => u.email.toLowerCase() === (financialState.email || '').toLowerCase());
+        return activeUser?.pin || '123456';
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return '123456';
+  });
+  const [pinError, setPinError] = useState('');
 
   // Preference fields
   const [selectedCurrency, setSelectedCurrency] = useState(currency);
@@ -50,11 +67,51 @@ export default function Profile({ financialState, onUpdateState }: ProfileProps)
   const [saved, setSaved] = useState(false);
 
   const isCompany = financialState.accountType === 'company';
+  const isFamily = financialState.accountType === 'family';
 
   // Sub tab inside Profile.tsx
-  const [activeSubTab, setActiveSubTab] = useState<'profile' | 'company'>(
-    isCompany ? 'company' : 'profile'
+  const [activeSubTab, setActiveSubTab] = useState<'profile' | 'company' | 'family'>(
+    isCompany ? 'company' : isFamily ? 'family' : 'profile'
   );
+
+  // Family State Fields
+  const [famMembersCount, setFamMembersCount] = useState(financialState.familyMembersCount !== undefined ? financialState.familyMembersCount : 4);
+  const [famChildrenCount, setFamChildrenCount] = useState(financialState.familyChildrenCount !== undefined ? financialState.familyChildrenCount : 2);
+  const [famWorkingCount, setFamWorkingCount] = useState(financialState.familyWorkingCount !== undefined ? financialState.familyWorkingCount : 2);
+  
+  const [famMembersList, setFamMembersList] = useState(() => {
+    if (financialState.familyMembersList && financialState.familyMembersList.length > 0) {
+      return financialState.familyMembersList;
+    }
+    return [
+      { id: 'fam1', name: 'Maria Mendes', relation: 'Cônjuge', works: true, salary: 150000 },
+      { id: 'fam2', name: 'Pedro Mendes', relation: 'Filho', works: false, salary: 0 },
+      { id: 'fam3', name: 'Rita Mendes', relation: 'Filha', works: false, salary: 0 }
+    ];
+  });
+
+  // Adding family member form states
+  const [newFamName, setNewFamName] = useState('');
+  const [newFamRelation, setNewFamRelation] = useState('Outro');
+  const [newFamWorks, setNewFamWorks] = useState(false);
+  const [newFamSalary, setNewFamSalary] = useState('');
+  const [famSavedMsg, setFamSavedMsg] = useState('');
+
+  // AI custom configuration fields
+  const [customApiKey, setCustomApiKey] = useState(financialState.customApiKey || '');
+
+  // Cofre (Safe) states
+  const [safeActive, setSafeActive] = useState(financialState.safeActive !== undefined ? financialState.safeActive : false);
+  const [safeType, setSafeType] = useState(financialState.safeType || 'percentage');
+  const [safeValue, setSafeValue] = useState(financialState.safeValue !== undefined ? financialState.safeValue : 10);
+  
+  // Withdraw from cofre form states
+  const [showWithdrawForm, setShowWithdrawForm] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawReason, setWithdrawReason] = useState('');
+  const [withdrawPin, setWithdrawPin] = useState('');
+  const [withdrawError, setWithdrawError] = useState('');
+  const [withdrawSuccess, setWithdrawSuccess] = useState('');
 
   // Collaborators List State
   const [collaborators, setCollaborators] = useState([
@@ -107,15 +164,164 @@ export default function Profile({ financialState, onUpdateState }: ProfileProps)
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
+    setPinError('');
+
+    if (pin.length !== 6 || !/^\d+$/.test(pin)) {
+      setPinError('O PIN de segurança deve conter exatamente 6 números.');
+      return;
+    }
+
+    // Update PIN and credentials inside our registered users list in localStorage
+    try {
+      const usersStr = localStorage.getItem('finfalo_registered_users');
+      if (usersStr) {
+        const users = JSON.parse(usersStr);
+        const updatedUsers = users.map((u: any) => {
+          if (u.email.toLowerCase() === (financialState.email || '').toLowerCase()) {
+            return {
+              ...u,
+              name: name,
+              email: email,
+              password: password !== '••••••••••••' ? password : u.password,
+              pin: pin
+            };
+          }
+          return u;
+        });
+        localStorage.setItem('finfalo_registered_users', JSON.stringify(updatedUsers));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+
     onUpdateState({
       userName: name,
+      email: email,
       currency: selectedCurrency,
       theme: selectedTheme as 'light' | 'dark',
       autoSaveType,
-      autoSaveValue: Number(autoSaveValue)
+      autoSaveValue: Number(autoSaveValue),
+      customApiKey,
+      familyMembersCount: Number(famMembersCount),
+      familyChildrenCount: Number(famChildrenCount),
+      familyWorkingCount: Number(famWorkingCount),
+      familyMembersList: famMembersList,
+      
+      // Save Cofre configuration
+      safeActive,
+      safeType,
+      safeValue: Number(safeValue)
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleSaveFamily = (e: React.FormEvent) => {
+    e.preventDefault();
+    onUpdateState({
+      familyMembersCount: Number(famMembersCount),
+      familyChildrenCount: Number(famChildrenCount),
+      familyWorkingCount: Number(famWorkingCount),
+      familyMembersList: famMembersList
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleWithdrawFromCofre = (e: React.FormEvent) => {
+    e.preventDefault();
+    setWithdrawError('');
+    setWithdrawSuccess('');
+
+    const amt = parseFloat(withdrawAmount);
+    if (isNaN(amt) || amt <= 0) {
+      setWithdrawError('Por favor, introduza um montante válido para retirar.');
+      return;
+    }
+
+    const currentSafeBalance = financialState.safeBalance || 0;
+    if (amt > currentSafeBalance) {
+      setWithdrawError(`Saldo do Cofre insuficiente. Tem apenas ${currentSafeBalance.toLocaleString()} ${currency} guardados.`);
+      return;
+    }
+
+    if (!withdrawReason.trim()) {
+      setWithdrawError('Por favor, forneça o motivo deste levantamento.');
+      return;
+    }
+
+    // Verify PIN
+    const usersStr = localStorage.getItem('finfalo_registered_users');
+    const users = usersStr ? JSON.parse(usersStr) : [];
+    const activeUser = users.find((u: any) => u.email.toLowerCase() === (financialState.email || '').toLowerCase());
+    const correctPin = activeUser?.pin || '123456';
+
+    if (withdrawPin !== correctPin) {
+      setWithdrawError('PIN de segurança incorreto. Não foi possível autorizar o levantamento.');
+      return;
+    }
+
+    // Success! Process:
+    // Create an income transaction of category 'Cofre' and description `Retirada do Cofre: [Reason]`
+    const withdrawalTx = {
+      id: 'tx_safe_wd_' + Date.now(),
+      description: `Retirada do Cofre: ${withdrawReason.trim()}`,
+      amount: amt,
+      type: 'income' as const,
+      category: 'Cofre',
+      date: new Date().toISOString().split('T')[0]
+    };
+
+    const updatedTxs = [withdrawalTx, ...financialState.transactions];
+    
+    // Add log
+    const updatedSafeLogs = financialState.safeLogs ? [...financialState.safeLogs] : [];
+    updatedSafeLogs.push({
+      id: 'log_wd_' + Date.now(),
+      date: new Date().toISOString().split('T')[0],
+      amount: amt,
+      type: 'withdrawal' as const,
+      reason: withdrawReason.trim()
+    });
+
+    // Notify user
+    const updatedNotifications = financialState.notifications ? [...financialState.notifications] : [];
+    updatedNotifications.push({
+      id: 'not_wd_' + Date.now(),
+      text: `Levantamento do Cofre: Retirou ${amt.toLocaleString()} ${currency} do seu Cofre Virtual com sucesso. Motivo: "${withdrawReason.trim()}". O valor foi devolvido ao seu saldo disponível!`,
+      type: 'success' as const,
+      date: 'Hoje',
+      read: false
+    });
+
+    // We must recalculate balance (incomesTotal - expensesTotal)
+    const incomesTotal = updatedTxs
+      .filter(t => t.type === 'income')
+      .reduce((sum, curr) => sum + curr.amount, 0);
+
+    const expensesTotal = updatedTxs
+      .filter(t => t.type === 'expense')
+      .reduce((sum, curr) => sum + curr.amount, 0);
+
+    const currentBalance = incomesTotal - expensesTotal;
+
+    onUpdateState({
+      transactions: updatedTxs,
+      notifications: updatedNotifications,
+      safeBalance: parseFloat((currentSafeBalance - amt).toFixed(2)),
+      safeLogs: updatedSafeLogs,
+      balance: currentBalance,
+      incomes: incomesTotal
+    });
+
+    setWithdrawSuccess(`Sucesso! Levou ${amt.toLocaleString()} ${currency} do cofre.`);
+    setWithdrawAmount('');
+    setWithdrawReason('');
+    setWithdrawPin('');
+    setTimeout(() => {
+      setShowWithdrawForm(false);
+      setWithdrawSuccess('');
+    }, 2500);
   };
 
   return (
@@ -138,7 +344,7 @@ export default function Profile({ financialState, onUpdateState }: ProfileProps)
         >
           Definições de Perfil
         </button>
-        {isCompany ? (
+        {isCompany && (
           <button
             onClick={() => setActiveSubTab('company')}
             className={`py-2 px-4 text-xs sm:text-sm font-display font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
@@ -149,23 +355,22 @@ export default function Profile({ financialState, onUpdateState }: ProfileProps)
           >
             <Shield className="w-4 h-4 text-emerald-400" /> Painel de Gestão da Empresa
           </button>
-        ) : (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                onUpdateState({ accountType: 'company' });
-                setActiveSubTab('company');
-              }}
-              className="py-1.5 px-3 bg-[#51a629]/10 hover:bg-[#51a629]/20 text-[#51a629] text-[10px] font-bold rounded-lg border border-[#51a629]/20 transition-all cursor-pointer"
-            >
-              Simular Conta de Empresa (Ativar Painel de Colaboradores & Relatórios)
-            </button>
-          </div>
+        )}
+        {isFamily && (
+          <button
+            onClick={() => setActiveSubTab('family')}
+            className={`py-2 px-4 text-xs sm:text-sm font-display font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeSubTab === 'family'
+                ? 'border-[#51a629] text-[#51a629]'
+                : 'border-transparent text-slate-400 hover:text-white'
+            }`}
+          >
+            <Users className="w-4 h-4 text-emerald-400" /> Painel de Gestão da Família
+          </button>
         )}
       </div>
 
-      {activeSubTab === 'company' ? (
+      {isCompany && activeSubTab === 'company' ? (
         <div className="space-y-6">
           {/* Header Card with Business Status */}
           <div className="bg-gradient-to-r from-emerald-500/10 via-slate-900 to-indigo-500/5 border border-slate-800 p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -451,6 +656,315 @@ export default function Profile({ financialState, onUpdateState }: ProfileProps)
             </div>
           </div>
         </div>
+      ) : isFamily && activeSubTab === 'family' ? (
+        <div className="space-y-6">
+          {/* Header Card with Family Status */}
+          <div className="bg-gradient-to-r from-emerald-500/10 via-slate-900 to-indigo-500/5 border border-slate-800 p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h2 className="text-base sm:text-lg font-display font-bold text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-emerald-400" />
+                Painel de Gestão Familiar: Família {name}
+              </h2>
+              <p className="text-xs text-slate-400 leading-relaxed max-w-xl">
+                Gere os membros da tua família, acompanha as despesas coletivas, filhos dependentes, membros ativos e as suas respetivas receitas mensais de forma consolidada.
+              </p>
+            </div>
+            <div className="flex gap-2 items-center">
+              <span className="text-[10px] bg-slate-900 border border-slate-800 text-slate-300 px-3 py-1 rounded-full font-mono font-bold uppercase tracking-wider">
+                Membros: {famMembersList.length + 1}
+              </span>
+              <span className="text-[10px] bg-[#51a629]/15 border border-[#51a629]/20 text-emerald-400 px-3 py-1 rounded-full font-mono font-bold uppercase tracking-wider">
+                Plano: Família Unida
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Left Column: Family Metrics */}
+            <div className="space-y-6 lg:col-span-1">
+              <form onSubmit={handleSaveFamily} className="fintech-card p-5 rounded-2xl space-y-4">
+                <h3 className="text-xs font-display font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                  <Coins className="w-4 h-4 text-[#51a629]" />
+                  Métricas da Família
+                </h3>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Total de Membros da Família</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={famMembersCount}
+                      onChange={(e) => setFamMembersCount(parseInt(e.target.value) || 1)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-emerald-500/50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Filhos Dependentes</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={famChildrenCount}
+                      onChange={(e) => setFamChildrenCount(parseInt(e.target.value) || 0)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-emerald-500/50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Membros que Trabalham</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={famWorkingCount}
+                      onChange={(e) => setFamWorkingCount(parseInt(e.target.value) || 0)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-emerald-500/50"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1"
+                >
+                  {saved ? 'Alterações Salvas!' : 'Guardar Alterações'}
+                </button>
+              </form>
+
+              {/* Family Budget Health consolidated */}
+              <div className="bg-slate-950/60 border border-slate-800 p-5 rounded-2xl space-y-3">
+                <h4 className="text-[10px] font-display font-black text-white uppercase tracking-widest">
+                  Receita Consolidada Mensal
+                </h4>
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center text-xs text-slate-400">
+                    <span>O Teu Salário:</span>
+                    <span className="text-white font-semibold">{(financialState.monthlyIncome || 0).toLocaleString()} {currency}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs text-slate-400">
+                    <span>Membros da Família:</span>
+                    <span className="text-[#51a629] font-semibold">
+                      {famMembersList
+                        .reduce((acc, m) => acc + (m.works ? m.salary : 0), 0)
+                        .toLocaleString()}{' '}
+                      {currency}
+                    </span>
+                  </div>
+                  <div className="border-t border-slate-800/80 my-2 pt-2 flex justify-between items-center text-sm font-bold text-white">
+                    <span>Receita Total:</span>
+                    <span className="text-emerald-400">
+                      {(
+                        (financialState.monthlyIncome || 0) +
+                        famMembersList.reduce((acc, m) => acc + (m.works ? m.salary : 0), 0)
+                      ).toLocaleString()}{' '}
+                      {currency}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: register and list */}
+            <div className="lg:col-span-2 space-y-6">
+              
+              {/* Add Member form */}
+              <div className="fintech-card p-5 rounded-2xl">
+                <h3 className="text-xs font-display font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                  <Plus className="w-4 h-4 text-emerald-400" />
+                  Cadastrar Novo Membro da Família
+                </h3>
+
+                <form 
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!newFamName) return;
+                    const newMember = {
+                      id: `fam_${Date.now()}`,
+                      name: newFamName,
+                      relation: newFamRelation,
+                      works: newFamWorks,
+                      salary: newFamWorks ? (Number(newFamSalary) || 0) : 0
+                    };
+                    const updatedList = [...famMembersList, newMember];
+                    setFamMembersList(updatedList);
+                    
+                    // Auto-increment family metrics if appropriate
+                    setFamMembersCount(c => c + 1);
+                    if (newFamRelation === 'Filho' || newFamRelation === 'Filha') {
+                      setFamChildrenCount(c => c + 1);
+                    }
+                    if (newFamWorks) {
+                      setFamWorkingCount(c => c + 1);
+                    }
+
+                    // Reset fields
+                    setNewFamName('');
+                    setNewFamRelation('Outro');
+                    setNewFamWorks(false);
+                    setNewFamSalary('');
+                    setFamSavedMsg('Membro adicionado com sucesso!');
+                    setTimeout(() => setFamSavedMsg(''), 3000);
+
+                    // Sync changes
+                    onUpdateState({
+                      familyMembersList: updatedList,
+                      familyMembersCount: famMembersCount + 1,
+                      familyChildrenCount: (newFamRelation === 'Filho' || newFamRelation === 'Filha') ? famChildrenCount + 1 : famChildrenCount,
+                      familyWorkingCount: newFamWorks ? famWorkingCount + 1 : famWorkingCount
+                    });
+                  }}
+                  className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                >
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Nome do Membro</label>
+                    <input
+                      type="text"
+                      required
+                      value={newFamName}
+                      onChange={(e) => setNewFamName(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-emerald-500/50"
+                      placeholder="Ex: Maria Mendes"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Parentesco</label>
+                    <select
+                      value={newFamRelation}
+                      onChange={(e) => setNewFamRelation(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 outline-none focus:border-emerald-500/50"
+                    >
+                      <option value="Cônjuge">Cônjuge</option>
+                      <option value="Filho">Filho</option>
+                      <option value="Filha">Filha</option>
+                      <option value="Pai">Pai</option>
+                      <option value="Mãe">Mãe</option>
+                      <option value="Tio">Tio</option>
+                      <option value="Tia">Tia</option>
+                      <option value="Outro">Outro</option>
+                    </select>
+                  </div>
+
+                  <div className="md:col-span-2 flex items-center gap-2 py-1">
+                    <input
+                      type="checkbox"
+                      id="newFamWorks"
+                      checked={newFamWorks}
+                      onChange={(e) => {
+                        setNewFamWorks(e.target.checked);
+                        if (!e.target.checked) setNewFamSalary('');
+                      }}
+                      className="accent-emerald-500 cursor-pointer"
+                    />
+                    <label htmlFor="newFamWorks" className="text-xs text-slate-300 cursor-pointer select-none">Este membro trabalha e tem salário mensal ativo</label>
+                  </div>
+
+                  {newFamWorks && (
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Salário Mensal ({currency})</label>
+                      <input
+                        type="number"
+                        required
+                        min="0"
+                        value={newFamSalary}
+                        onChange={(e) => setNewFamSalary(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-emerald-500/50 font-mono"
+                        placeholder="Ex: 150000"
+                      />
+                    </div>
+                  )}
+
+                  <div className="md:col-span-2 flex justify-between items-center pt-2">
+                    {famSavedMsg ? (
+                      <span className="text-xs text-emerald-400 font-bold">{famSavedMsg}</span>
+                    ) : (
+                      <span />
+                    )}
+                    <button
+                      type="submit"
+                      className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                    >
+                      Adicionar Membro
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Members List */}
+              <div className="fintech-card p-5 rounded-2xl">
+                <h3 className="text-xs font-display font-bold text-white uppercase tracking-wider mb-4">
+                  Membros Registados ({famMembersList.length})
+                </h3>
+
+                {famMembersList.length === 0 ? (
+                  <p className="text-xs text-slate-500 py-4 text-center">Nenhum membro registado além de ti.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-800 text-[10px] font-mono uppercase tracking-wider text-slate-500">
+                          <th className="pb-2">Nome</th>
+                          <th className="pb-2">Parentesco</th>
+                          <th className="pb-2">Trabalha?</th>
+                          <th className="pb-2 text-right">Salário Mensal</th>
+                          <th className="pb-2 text-right">Ação</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {famMembersList.map((member) => (
+                          <tr key={member.id} className="border-b border-slate-900/50 hover:bg-slate-950/20">
+                            <td className="py-2.5 font-semibold text-white">{member.name}</td>
+                            <td className="py-2.5 text-slate-400">{member.relation}</td>
+                            <td className="py-2.5">
+                              {member.works ? (
+                                <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold">Sim</span>
+                              ) : (
+                                <span className="text-[10px] bg-slate-900 text-slate-400 border border-slate-800 px-2 py-0.5 rounded-full">Não</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 text-right font-mono text-white">
+                              {member.works ? `${member.salary.toLocaleString()} ${currency}` : '-'}
+                            </td>
+                            <td className="py-2.5 text-right">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updatedList = famMembersList.filter(m => m.id !== member.id);
+                                  setFamMembersList(updatedList);
+                                  
+                                  // Auto-adjust metrics
+                                  setFamMembersCount(c => Math.max(1, c - 1));
+                                  if (member.relation === 'Filho' || member.relation === 'Filha') {
+                                    setFamChildrenCount(c => Math.max(0, c - 1));
+                                  }
+                                  if (member.works) {
+                                    setFamWorkingCount(c => Math.max(0, c - 1));
+                                  }
+
+                                  onUpdateState({
+                                    familyMembersList: updatedList,
+                                    familyMembersCount: Math.max(1, famMembersCount - 1),
+                                    familyChildrenCount: (member.relation === 'Filho' || member.relation === 'Filha') ? Math.max(0, famChildrenCount - 1) : famChildrenCount,
+                                    familyWorkingCount: member.works ? Math.max(0, famWorkingCount - 1) : famWorkingCount
+                                  });
+                                }}
+                                className="text-slate-500 hover:text-rose-400 p-1 rounded transition-colors cursor-pointer inline-flex items-center"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </div>
+        </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
@@ -533,7 +1047,7 @@ export default function Profile({ financialState, onUpdateState }: ProfileProps)
                   />
                 </div>
 
-                <div className="relative">
+                <div>
                   <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Palavra-passe</label>
                   <div className="relative">
                     <input
@@ -550,6 +1064,30 @@ export default function Profile({ financialState, onUpdateState }: ProfileProps)
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">PIN de Segurança (6 dígitos)</label>
+                  <input
+                    type="password"
+                    pattern="\d*"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={pin}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '');
+                      if (val.length <= 6) setPin(val);
+                    }}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-emerald-500/50 font-mono tracking-[0.2em] font-bold"
+                    placeholder="Ex: 123456"
+                  />
+                  {pinError ? (
+                    <span className="text-[10px] text-rose-400 block mt-1 font-bold">{pinError}</span>
+                  ) : (
+                    <span className="text-[10px] text-slate-500 block mt-1">
+                      PIN numérico de 6 dígitos para autorizar transações e login.
+                    </span>
+                  )}
                 </div>
 
                 {/* Preferences breakdown */}
@@ -657,6 +1195,210 @@ export default function Profile({ financialState, onUpdateState }: ProfileProps)
                     )}
                   </div>
                 </div>
+
+                {/* Cofre Virtual Seguro (Vault) Section */}
+                <div className="md:col-span-2 pt-4 border-t border-slate-800/60 mt-2">
+                  <h4 className="text-xs font-display font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                    <Lock className="w-4 h-4 text-emerald-400" /> Cofre Virtual Seguro (Reserva Financeira)
+                  </h4>
+
+                  {/* Cofre Balance display & Withdrawal CTA */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-950/60 border border-slate-800/60 rounded-2xl p-4 mb-4">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Saldo Atual Guardado</span>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-2xl font-mono font-bold text-[#51a629]">
+                          {(financialState.safeBalance || 0).toLocaleString()}
+                        </span>
+                        <span className="text-xs text-slate-400 font-bold">{currency}</span>
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-relaxed">
+                        Este valor está protegido no cofre e não pode ser gasto em transações normais de débito até ser retirado para o seu saldo disponível.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col justify-center items-start md:items-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowWithdrawForm(!showWithdrawForm);
+                          setWithdrawError('');
+                          setWithdrawSuccess('');
+                        }}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          showWithdrawForm 
+                            ? 'bg-slate-800 text-slate-300 hover:bg-slate-750' 
+                            : 'bg-[#51a629] text-slate-950 hover:bg-[#51a629]/90'
+                        }`}
+                      >
+                        <Coins className="w-4 h-4" />
+                        {showWithdrawForm ? 'Fechar Formulário' : 'Efetuar Levantamento'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Withdrawal Form */}
+                  {showWithdrawForm && (
+                    <div className="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 mb-4 space-y-4 animate-in fade-in duration-250">
+                      <div className="flex items-center gap-1.5 border-b border-slate-800/60 pb-2">
+                        <Coins className="w-4 h-4 text-[#51a629]" />
+                        <span className="text-xs font-bold text-white">Formulário de Levantamento de Cofre</span>
+                      </div>
+
+                      {withdrawError && (
+                        <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 p-2.5 rounded-xl text-xs flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                          <span>{withdrawError}</span>
+                        </div>
+                      )}
+
+                      {withdrawSuccess && (
+                        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-2.5 rounded-xl text-xs flex items-center gap-2">
+                          <Check className="w-4 h-4 shrink-0 text-emerald-400" />
+                          <span>{withdrawSuccess}</span>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Montante a Levantar</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={withdrawAmount}
+                            onChange={(e) => setWithdrawAmount(e.target.value)}
+                            placeholder="Ex: 50000"
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-[#51a629]/50"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Motivo do Levantamento</label>
+                          <input
+                            type="text"
+                            value={withdrawReason}
+                            onChange={(e) => setWithdrawReason(e.target.value)}
+                            placeholder="Ex: Pagamento Urgente"
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-[#51a629]/50"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">PIN de Segurança (6 dígitos)</label>
+                          <input
+                            type="password"
+                            pattern="\d*"
+                            inputMode="numeric"
+                            maxLength={6}
+                            value={withdrawPin}
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, '');
+                              if (val.length <= 6) setWithdrawPin(val);
+                            }}
+                            placeholder="••••••"
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-[#51a629]/50 font-mono tracking-widest font-bold text-center"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-2 border-t border-slate-800/40">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowWithdrawForm(false);
+                            setWithdrawAmount('');
+                            setWithdrawReason('');
+                            setWithdrawPin('');
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-400 text-[11px] font-semibold cursor-pointer"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleWithdrawFromCofre}
+                          className="px-4 py-1.5 rounded-lg bg-[#51a629] hover:bg-[#51a629]/90 text-slate-950 text-[11px] font-black cursor-pointer"
+                        >
+                          Confirmar Levantamento
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Cofre configuration rules */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-950/20 border border-slate-800/40 rounded-2xl p-4">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Estado do Cofre</label>
+                      <select
+                        value={safeActive ? 'active' : 'inactive'}
+                        onChange={(e) => setSafeActive(e.target.value === 'active')}
+                        className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-300 outline-none focus:border-[#51a629]/50"
+                      >
+                        <option value="inactive">Inativo (Não descontar nada)</option>
+                        <option value="active">Ativo (Descontar de cada entrada)</option>
+                      </select>
+                    </div>
+
+                    {safeActive && (
+                      <>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Regra de Reforço</label>
+                          <select
+                            value={safeType}
+                            onChange={(e) => {
+                              const val = e.target.value as any;
+                              setSafeType(val);
+                              setSafeValue(val === 'percentage' ? 10 : 5000);
+                            }}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-300 outline-none focus:border-[#51a629]/50"
+                          >
+                            <option value="percentage">Percentagem de cada entrada (%)</option>
+                            <option value="fixed">Quantia fixa de cada entrada ({currency})</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                            {safeType === 'percentage' ? 'Percentagem (%)' : `Valor Fixo (${currency})`}
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step={safeType === 'percentage' ? '1' : 'any'}
+                            max={safeType === 'percentage' ? '100' : undefined}
+                            value={safeValue}
+                            onChange={(e) => setSafeValue(parseFloat(e.target.value) || 0)}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#51a629]/50"
+                            placeholder={safeType === 'percentage' ? 'Ex: 10' : 'Ex: 5000'}
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* AI Configuration */}
+                <div className="md:col-span-2 pt-4 border-t border-slate-800/60 mt-2">
+                  <h4 className="text-xs font-display font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-emerald-400" /> Inteligência Artificial & FinBot
+                  </h4>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Chave de API do Gemini (Opcional)</label>
+                    <input
+                      type="password"
+                      value={customApiKey}
+                      onChange={(e) => setCustomApiKey(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-emerald-500/50 font-mono"
+                      placeholder="Introduz a tua chave API do Gemini para alimentar os bots inteligentes..."
+                    />
+                    <span className="text-[10px] text-slate-500 block mt-1">
+                      A chave de API é armazenada de forma segura e localmente no teu navegador para personalizar e alimentar a inteligência artificial dos bots de chat.
+                    </span>
+                  </div>
+                </div>
+
               </div>
 
               {/* Save CTA */}

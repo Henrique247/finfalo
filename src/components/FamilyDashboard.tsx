@@ -40,21 +40,55 @@ export default function FamilyDashboard({
     return val.toLocaleString() + ' ' + currency;
   };
 
-  // Static list of family members for visualization
-  const familyMembers = [
-    { name: 'Henrique (Responsável)', role: 'Pai', limit: 250000, spent: 185000, color: 'border-emerald-500' },
-    { name: 'Maria Mendes', role: 'Mãe', limit: 250000, spent: 120000, color: 'border-sky-500' },
-    { name: 'Lucas Mendes', role: 'Filho', limit: 50000, spent: 35000, color: 'border-amber-500' },
-    { name: 'Sofia Mendes', role: 'Filha', limit: 50000, spent: 42000, color: 'border-pink-500' }
-  ];
+  const isTestAccount = financialState.email && ['personal@finfalo.com', 'familia@finfalo.com', 'empresa@finfalo.com'].includes(financialState.email.toLowerCase());
+
+  const getFamilyMembers = () => {
+    if (isTestAccount) {
+      return [
+        { name: 'Henrique (Responsável)', role: 'Pai', limit: 250000, spent: 185000, color: 'border-emerald-500' },
+        { name: 'Maria Mendes', role: 'Mãe', limit: 250000, spent: 120000, color: 'border-sky-500' },
+        { name: 'Lucas Mendes', role: 'Filho', limit: 50000, spent: 35000, color: 'border-amber-500' },
+        { name: 'Sofia Mendes', role: 'Filha', limit: 50000, spent: 42000, color: 'border-pink-500' }
+      ];
+    }
+    
+    // Dynamic family members list for real users
+    const list = [
+      { 
+        name: `${userName || 'Utilizador'} (Responsável)`, 
+        role: 'Responsável (Gestor)', 
+        limit: financialState.monthlyIncome || 350000, 
+        spent: expenses, 
+        color: 'border-emerald-500' 
+      }
+    ];
+    
+    const colors = ['border-sky-500', 'border-amber-500', 'border-pink-500', 'border-indigo-500', 'border-violet-500'];
+    
+    if (financialState.familyMembersList && financialState.familyMembersList.length > 0) {
+      financialState.familyMembersList.forEach((m, idx) => {
+        list.push({
+          name: m.name,
+          role: m.relation,
+          limit: m.works ? m.salary : 50000,
+          spent: 0, // No simulated fake expenditures
+          color: colors[idx % colors.length]
+        });
+      });
+    }
+    
+    return list;
+  };
+
+  const familyMembers = getFamilyMembers();
 
   return (
     <div className="space-y-4 sm:space-y-6">
       
       {/* Family Hero Header Card */}
-      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#0c1e30] via-[#112a43] to-[#184066] p-5 sm:p-6 text-white shadow-xl border border-[#184066]/50 transition-all">
+      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#053259] via-[#064a7f] to-[#0869A6] p-4 sm:p-6 text-white shadow-xl border border-[#0869A6]/40 transition-all">
         {/* Heart icon glow watermark */}
-        <div className="absolute top-0 right-0 w-36 h-36 bg-pink-500/5 rounded-full blur-3xl -mr-16 -mt-16 animate-pulse"></div>
+        <div className="absolute top-0 right-0 w-36 h-36 bg-[#51a629]/10 rounded-full blur-3xl -mr-16 -mt-16 animate-pulse"></div>
         <div className="absolute -bottom-16 -left-16 w-48 h-48 bg-[#51a629]/5 rounded-full blur-3xl"></div>
         
         <div className="flex items-center justify-between relative z-10 gap-2">
@@ -64,14 +98,14 @@ export default function FamilyDashboard({
             </div>
             <div className="min-w-0">
               <span className="text-[10px] text-[#A2C7E5] font-display font-medium tracking-wider uppercase block">Cofre de Família</span>
-              <h2 className="text-sm sm:text-base font-display font-black text-white -mt-0.5 tracking-tight truncate">
-                {userName || 'Família Mendes'} <span className="text-xs text-pink-400">♥</span>
+              <h2 className="text-sm sm:text-base font-display font-black text-white -mt-0.5 tracking-tight truncate font-sans">
+                {userName || 'Família Mendes'} <span className="text-xs text-[#51a629]">●</span>
               </h2>
             </div>
           </div>
           
-          <div className="bg-pink-500/10 border border-pink-500/20 px-3 py-1 rounded-full text-[9px] font-mono text-pink-400 flex items-center gap-1 font-bold shrink-0">
-            <Shield className="w-3.5 h-3.5" />
+          <div className="bg-white/10 backdrop-blur-md border border-white/15 px-3 py-1 rounded-full text-[9px] font-mono text-slate-100 flex items-center gap-1 font-bold shrink-0">
+            <Shield className="w-3.5 h-3.5 text-[#51a629]" />
             <span>Segurança Familiar</span>
           </div>
         </div>
@@ -85,18 +119,18 @@ export default function FamilyDashboard({
         </div>
 
         {/* Quick Family Actions */}
-        <div className="grid grid-cols-2 gap-3 mt-6 relative z-10">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 mt-6 relative z-10">
           <button
             onClick={() => onOpenQuickAction('income')}
-            className="py-3 px-2 rounded-2xl bg-white/10 hover:bg-white/20 active:scale-95 border border-white/15 text-xs font-bold text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm hover:shadow-md"
+            className="py-2.5 sm:py-3 px-2 rounded-xl sm:rounded-2xl bg-white/15 hover:bg-white/25 active:scale-95 border border-white/20 text-[10px] sm:text-xs font-bold text-white transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer shadow-sm hover:shadow-md truncate font-sans"
           >
-            <Plus className="w-4 h-4 text-[#51a629] stroke-[3]" /> Adicionar Receita Coletiva
+            <Plus className="w-3.5 h-3.5 text-[#51a629] stroke-[3] shrink-0" /> <span className="truncate">Receita Coletiva</span>
           </button>
           <button
             onClick={() => onOpenQuickAction('expense')}
-            className="py-3 px-2 rounded-2xl bg-[#51a629] hover:bg-[#278c36] active:scale-95 text-xs font-bold text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-[#278c36]/20 border border-[#51a629]"
+            className="py-2.5 sm:py-3 px-2 rounded-xl sm:rounded-2xl bg-[#51a629] hover:bg-[#278c36] active:scale-95 text-[10px] sm:text-xs font-bold text-white transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer shadow-lg shadow-[#278c36]/20 border border-[#51a629] truncate font-sans"
           >
-            <ArrowUpRight className="w-4 h-4 text-white stroke-[2.5]" /> Registar Despesa Familiar
+            <ArrowUpRight className="w-3.5 h-3.5 text-white stroke-[2.5] shrink-0" /> <span className="truncate">Despesa Familiar</span>
           </button>
         </div>
       </div>
@@ -150,6 +184,18 @@ export default function FamilyDashboard({
                 );
               })}
             </div>
+
+            {!isTestAccount && familyMembers.length === 1 && (
+              <div className="pt-4 mt-2 border-t border-slate-800/40 text-center">
+                <p className="text-[10px] text-slate-400">Configure e adicione outros membros da família (cônjuge, filhos) para gerir as suas mesadas e limites!</p>
+                <button
+                  onClick={() => onNavigate('Perfil')}
+                  className="mt-2 text-[11px] font-bold text-[#51a629] hover:underline cursor-pointer"
+                >
+                  Adicionar Membro da Família →
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Family Budget Items Breakdown */}

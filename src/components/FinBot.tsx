@@ -14,15 +14,23 @@ interface ChatMessage {
 }
 
 export default function FinBot({ financialState, isOpen, onClose }: FinBotProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: 'model',
-      text: `Olá Henrique! Sou o **FinBot**, o teu assistente financeiro inteligente da FinFalo. \n\nPosso analisar as tuas despesas, verificar as tuas metas de poupança e sugerir formas inteligentes de poupares dinheiro. \n\nComo posso ajudar-te hoje?`
-    }
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Dynamic initialization or reset of initial message when userName or accountType changes
+  useEffect(() => {
+    if (messages.length <= 1) {
+      const name = financialState.userName || 'Utilizador';
+      setMessages([
+        {
+          role: 'model',
+          text: `Olá ${name}! Sou o **FinBot**, o teu assistente financeiro inteligente da FinFalo. \n\nPosso analisar as tuas despesas, verificar as tuas metas de poupança e sugerir formas inteligentes de poupares dinheiro. \n\nComo posso ajudar-te hoje?`
+        }
+      ]);
+    }
+  }, [financialState.userName, financialState.accountType]);
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -56,7 +64,13 @@ export default function FinBot({ financialState, isOpen, onClose }: FinBotProps)
             healthScore: financialState.healthScore,
             transactions: financialState.transactions,
             goals: financialState.goals,
-            budgets: financialState.budgets
+            budgets: financialState.budgets,
+            accountType: financialState.accountType,
+            customApiKey: financialState.customApiKey,
+            familyMembersCount: financialState.familyMembersCount,
+            familyChildrenCount: financialState.familyChildrenCount,
+            familyWorkingCount: financialState.familyWorkingCount,
+            familyMembersList: financialState.familyMembersList
           }
         })
       });

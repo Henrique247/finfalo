@@ -82,4 +82,20 @@ export interface FinancialState {
   employees?: { id: string; name: string; role: string; salary: number }[];
   clients?: { id: string; name: string; email: string; phone: string; status: string }[];
   suppliers?: { id: string; name: string; category: string; contact: string }[];
+
+  // Family account features
+  familyMembersCount?: number;
+  familyChildrenCount?: number;
+  familyWorkingCount?: number;
+  familyMembersList?: { id: string; name: string; relation: string; works: boolean; salary: number }[];
+
+  // AI custom configuration
+  customApiKey?: string;
+
+  // Cofre (Safe) configuration
+  safeActive?: boolean;
+  safeType?: 'percentage' | 'fixed' | 'disabled';
+  safeValue?: number;
+  safeBalance?: number;
+  safeLogs?: { id: string; date: string; amount: number; type: 'deposit' | 'withdrawal'; reason?: string }[];
 }

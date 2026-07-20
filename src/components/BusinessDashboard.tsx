@@ -81,21 +81,23 @@ export default function BusinessDashboard({
     return val.toLocaleString() + ' ' + currency;
   };
 
+  const isTestAccount = financialState.email && ['personal@finfalo.com', 'familia@finfalo.com', 'empresa@finfalo.com'].includes(financialState.email.toLowerCase());
+
+  // Real revenues and costs calculated directly from all transactions
+  const realIncomes = transactions
+    .filter(t => t.type === 'income')
+    .reduce((sum, curr) => sum + curr.amount, 0);
+
+  const realExpenses = transactions
+    .filter(t => t.type === 'expense')
+    .reduce((sum, curr) => sum + curr.amount, 0);
+
   // Dynamic seed values for Company
-  const companyBaseRevenues = 9500000;
-  const companyBaseCosts = 6800000;
+  const companyBaseRevenues = isTestAccount ? 9500000 : 0;
+  const companyBaseCosts = isTestAccount ? 6800000 : 0;
 
-  // Add dynamically added transactions to keep the UI perfectly functional
-  const addedIncomes = transactions
-    .filter(t => t.type === 'income' && t.id.startsWith('tx_'))
-    .reduce((sum, curr) => sum + curr.amount, 0);
-
-  const addedExpenses = transactions
-    .filter(t => t.type === 'expense' && t.id.startsWith('tx_'))
-    .reduce((sum, curr) => sum + curr.amount, 0);
-
-  const totalRevenues = companyBaseRevenues + addedIncomes;
-  const totalCosts = companyBaseCosts + addedExpenses;
+  const totalRevenues = isTestAccount ? (companyBaseRevenues + realIncomes) : realIncomes;
+  const totalCosts = isTestAccount ? (companyBaseCosts + realExpenses) : realExpenses;
   const totalProfit = totalRevenues - totalCosts;
 
   // Handles adding business items
@@ -198,11 +200,11 @@ export default function BusinessDashboard({
 
   // Dynamic breakdown of company costs by categories
   const getCompanyCategoriesCosts = () => {
-    const baseSalaries = 800000;
-    const baseInternet = 150000;
-    const baseCompras = 100000;
-    const baseEnergia = 80000;
-    const baseImpostos = 120000;
+    const baseSalaries = isTestAccount ? 800000 : 0;
+    const baseInternet = isTestAccount ? 150000 : 0;
+    const baseCompras = isTestAccount ? 100000 : 0;
+    const baseEnergia = isTestAccount ? 80000 : 0;
+    const baseImpostos = isTestAccount ? 120000 : 0;
     
     const dynamicSalaries = transactions
       .filter(t => t.type === 'expense' && t.category === 'Salários')
@@ -316,21 +318,21 @@ export default function BusinessDashboard({
         {bizTab === 'geral' && (
           <div className="space-y-6">
             {/* Top Business Performance Hero Card */}
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#053259] via-[#064a7f] to-[#0869A6] p-5 sm:p-6 text-white shadow-xl border border-[#0869A6]/40 transition-all">
+            <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-br from-[#053259] via-[#064a7f] to-[#0869A6] p-4 sm:p-6 text-white shadow-xl border border-[#0869A6]/40 transition-all">
               <div className="absolute top-0 right-0 w-48 h-48 bg-[#51a629]/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
-              <div className="flex items-center justify-between relative z-10">
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-2xl bg-[#51a629]/15 border border-[#51a629]/30 flex items-center justify-center text-[#51a629]">
+              <div className="flex items-center justify-between relative z-10 gap-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-2xl bg-[#51a629]/15 border border-[#51a629]/30 flex items-center justify-center text-[#51a629] shrink-0">
                     <Building className="w-6 h-6" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-[10px] text-[#A2C7E5] font-display font-medium tracking-wider uppercase block">Gestão Empresarial</span>
-                    <h2 className="text-sm sm:text-base font-display font-black text-white -mt-0.5 tracking-tight truncate">
-                      {userName} <span className="text-emerald-400">●</span>
+                    <h2 className="text-sm sm:text-base font-display font-black text-white -mt-0.5 tracking-tight truncate font-sans">
+                      {userName} <span className="text-[#51a629]">●</span>
                     </h2>
                   </div>
                 </div>
-                <div className="bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full text-[9px] font-mono text-emerald-400 flex items-center gap-1 font-bold shrink-0">
+                <div className="bg-white/10 backdrop-blur-md border border-white/15 px-2.5 py-1 rounded-full text-[9px] font-mono text-slate-100 flex items-center gap-1 font-bold shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#51a629] animate-pulse"></span>
                   <span>PME Gestor</span>
                 </div>
@@ -344,18 +346,18 @@ export default function BusinessDashboard({
               </div>
 
               {/* Corporate Quick Actions inside company card */}
-              <div className="grid grid-cols-2 gap-3 mt-6 relative z-10">
+              <div className="grid grid-cols-2 gap-2 sm:gap-3 mt-6 relative z-10">
                 <button
                   onClick={() => onOpenQuickAction('income')}
-                  className="py-3 px-2 rounded-2xl bg-white/10 hover:bg-white/20 active:scale-95 border border-white/15 text-xs font-bold text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-sm hover:shadow-md"
+                  className="py-2.5 sm:py-3 px-2 rounded-xl sm:rounded-2xl bg-white/15 hover:bg-white/25 active:scale-95 border border-white/20 text-[10px] sm:text-xs font-bold text-white transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer shadow-sm hover:shadow-md truncate font-sans"
                 >
-                  <Plus className="w-4 h-4 text-[#51a629] stroke-[3]" /> Registar Receita (Venda)
+                  <Plus className="w-3.5 h-3.5 text-[#51a629] stroke-[3] shrink-0" /> <span className="truncate">Registar Receita</span>
                 </button>
                 <button
                   onClick={() => onOpenQuickAction('expense')}
-                  className="py-3 px-2 rounded-2xl bg-[#51a629] hover:bg-[#278c36] active:scale-95 text-xs font-bold text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-[#278c36]/20 border border-[#51a629]"
+                  className="py-2.5 sm:py-3 px-2 rounded-xl sm:rounded-2xl bg-[#51a629] hover:bg-[#278c36] active:scale-95 text-[10px] sm:text-xs font-bold text-white transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer shadow-lg shadow-[#278c36]/20 border border-[#51a629] truncate font-sans"
                 >
-                  <ArrowUpRight className="w-4 h-4 text-white stroke-[2.5]" /> Registar Custo (Despesa)
+                  <ArrowUpRight className="w-3.5 h-3.5 text-white stroke-[2.5] shrink-0" /> <span className="truncate">Registar Custo</span>
                 </button>
               </div>
             </div>
@@ -423,7 +425,7 @@ export default function BusinessDashboard({
             </div>
 
             {/* Quick stats widget for Employees, Clients, Suppliers */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <button 
                 onClick={() => setBizTab('funcionarios')}
                 className="bg-slate-900 border border-slate-800 p-3 rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer group hover:border-[#51a629]/30 transition-colors"

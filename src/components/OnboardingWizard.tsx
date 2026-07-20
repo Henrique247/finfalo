@@ -73,7 +73,7 @@ export default function OnboardingWizard({ financialState, onComplete, onSkip }:
     : ['Comprar Casa / Terreno', 'Fundo de Emergência', 'Comprar Carro', 'Fazer uma Viagem', 'Educação / Cursos', 'Outros'];
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#031c33]/95 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+    <section className="fixed inset-0 z-50 bg-[#031c33]/95 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
       <div className="absolute top-0 inset-x-0 h-[400px] bg-gradient-to-b from-[#0869A6]/15 to-transparent pointer-events-none" />
       
       <motion.div 
@@ -419,6 +419,6 @@ export default function OnboardingWizard({ financialState, onComplete, onSkip }:
           </motion.div>
         )}
       </motion.div>
-    </div>
+    </section>
   );
 }
